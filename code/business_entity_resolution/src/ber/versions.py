@@ -62,6 +62,7 @@ class Match:
     support: bool = False           # stage 2 also sees similarity to the S1's confident candidates
     rules: tuple = ("threshold", "expected_f", "gated_ef")  # decision rules tried on the eval slice
     lgb: tuple = ()                 # (name, value) overrides of model.DEFAULT_PARAMS
+    pred_margin: float | None = None  # stop summing trees once 2*|raw score| exceeds this (LightGBM pred_early_stop)
 
     def lgb_params(self) -> dict:
         return dict(self.lgb)
@@ -110,6 +111,10 @@ MATCH = _index(
     Match("MATCH-v2", "MATCH-v1 + stage 2 on stage-1 probability context, cross-fitted; rule chosen on the eval "
                       "slice among threshold, expected F and gated expected F"),
     Match("MATCH-v3", "MATCH-v2 + support features in stage 2", support=True),
+    Match("MATCH-v4", "EXPERIMENTAL, not validated: MATCH-v2 with LightGBM prediction early stopping (margin 10) to "
+                      "cut scoring time (full-data models grow ~1,400 trees). On tiny data it moved stage-1 "
+                      "probabilities by up to 0.31 and stage-2 ones further (their inputs shift): not a free speedup",
+          pred_margin=10.0),
 )
 
 PRESETS = {

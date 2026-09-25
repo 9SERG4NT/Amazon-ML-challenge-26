@@ -285,9 +285,14 @@ def _load_rows(parts: list[Path], keep_q: np.ndarray, cols: list[str], pairs: pl
     return X, y, q, rows
 
 
-def _predict(models, X: np.ndarray, q: np.ndarray, role: np.ndarray | None, fold: np.ndarray | None) -> np.ndarray:
-    """Fit rows get the fold model that did not train on their entity; every other row gets the mean."""
-    P = np.stack([m.predict(X, num_threads=0) for m in models]).astype(np.float32)
+def _predict(models, X: np.ndarray, q: np.ndarray, role: np.ndarray | None, fold: np.ndarray | None,
+             margin: float | None = None) -> np.ndarray:
+    """Fit rows get the fold model that did not train on their entity; every other row gets the mean.
+
+    ``margin`` turns on LightGBM's prediction early stopping (Match.pred_margin).
+    """
+    kw = {} if margin is None else {"pred_early_stop": True, "pred_early_stop_freq": 10, "pred_early_stop_margin": margin}
+    P = np.stack([m.predict(X, num_threads=0, **kw) for m in models]).astype(np.float32)
     out = P.mean(0)
     if role is not None:
         fit = np.flatnonzero(role[q] == FIT)
@@ -295,7 +300,8 @@ def _predict(models, X: np.ndarray, q: np.ndarray, role: np.ndarray | None, fold
     return out
 
 
-def _predict_parts(models, parts: list[Path], cols: list[str], role=None, fold=None, extra=None) -> np.ndarray:
+def _predict_parts(models, parts: list[Path], cols: list[str], role=None, fold=None, extra=None,
+                   margin: float | None = None) -> np.ndarray:
     """Predict every candidate in order; ``extra`` holds columns appended to the part features."""
     out, off = [], 0
     for p in parts:
@@ -303,7 +309,7 @@ def _predict_parts(models, parts: list[Path], cols: list[str], role=None, fold=N
         X = df.select(cols).to_numpy()
         if extra is not None:
             X = np.hstack([X, extra[off:off + len(X)]])
-        out.append(_predict(models, X, df["q_rid"].to_numpy(), role, fold))
+        out.append(_predict(models, X, df["q_rid"].to_numpy(), role, fold, margin))
         off += len(X)
     return np.concatenate(out)
 
@@ -354,8 +360,8 @@ def stage_train(a, rv: V.RunVersions, P: Paths) -> dict:
 
     s1 = _cross_fit(X, y, q, role, fold, cols, mv, "stage1", P)
     del X  # stage 2 re-reads its rows, so the two matrices are never held together
-    p1_tr = _predict_parts(s1, tr_parts, cols, role, fold)
-    p1_te = _predict_parts(s1, te_parts, cols)
+    p1_tr = _predict_parts(s1, tr_parts, cols, role, fold, margin=mv.pred_margin)
+    p1_te = _predict_parts(s1, te_parts, cols, margin=mv.pred_margin)
     log("stage 1 predicted train (out-of-fold) and test")
     C_tr = pl.read_parquet(P.block / "cand_train.parquet", columns=["q_rid", "t_rid", "src"])
     C_te = pl.read_parquet(P.block / "cand_test.parquet", columns=["q_rid", "t_rid", "src"])
@@ -371,10 +377,10 @@ def stage_train(a, rv: V.RunVersions, P: Paths) -> dict:
         X2, _, _, _ = _load_rows(tr_parts, keep, cols, pairs, extra=extra_tr)  # same rows, same order as X
         s2 = _cross_fit(X2, y, q, role, fold, cols2, mv, "stage2", P)
         del X2
-        scores_tr = scores_tr.with_columns(pl.Series("p2", _predict_parts(s2, tr_parts, cols, role, fold, extra=extra_tr)))
+        scores_tr = scores_tr.with_columns(pl.Series("p2", _predict_parts(s2, tr_parts, cols, role, fold, extra=extra_tr, margin=mv.pred_margin)))
         del extra_tr
         extra_te, _ = _stage2_extra(C_te, p1_te, text("test"))  # built only now, to keep the peak down
-        scores_te = scores_te.with_columns(pl.Series("p2", _predict_parts(s2, te_parts, cols, extra=extra_te)))
+        scores_te = scores_te.with_columns(pl.Series("p2", _predict_parts(s2, te_parts, cols, extra=extra_te, margin=mv.pred_margin)))
         del extra_te
         log("stage 2 predicted train (out-of-fold) and test")
         out.update({"features_stage2": len(cols2), "best_iterations_stage2": [m.best_iteration for m in s2],
