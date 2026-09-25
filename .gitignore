@@ -2,6 +2,8 @@
 resources/student_resource/dataset/
 *.tsv
 !output/*.tsv
+# ~1 GB on the full test set: over GitHub's 100 MB file limit (kept in S3 predictions/<version>/)
+output/candidate_pairs.tsv
 
 # macOS junk
 __MACOSX/
