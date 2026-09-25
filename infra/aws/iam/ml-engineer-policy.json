@@ -1,0 +1,93 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "StudioAndTrainingInUsEast1",
+      "Effect": "Allow",
+      "Action": [
+        "sagemaker:CreateDomain",
+        "sagemaker:DescribeDomain",
+        "sagemaker:ListDomains",
+        "sagemaker:CreateUserProfile",
+        "sagemaker:DescribeUserProfile",
+        "sagemaker:ListUserProfiles",
+        "sagemaker:CreateSpace",
+        "sagemaker:DescribeSpace",
+        "sagemaker:ListSpaces",
+        "sagemaker:UpdateSpace",
+        "sagemaker:DeleteSpace",
+        "sagemaker:CreateApp",
+        "sagemaker:DescribeApp",
+        "sagemaker:ListApps",
+        "sagemaker:DeleteApp",
+        "sagemaker:CreatePresignedDomainUrl",
+        "sagemaker:CreateTrainingJob",
+        "sagemaker:DescribeTrainingJob",
+        "sagemaker:StopTrainingJob",
+        "sagemaker:ListTrainingJobs",
+        "sagemaker:CreateProcessingJob",
+        "sagemaker:DescribeProcessingJob",
+        "sagemaker:ListProcessingJobs",
+        "sagemaker:AddTags",
+        "sagemaker:ListTags"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "us-east-1"
+        }
+      }
+    },
+    {
+      "Sid": "PassOnlyTheSageMakerExecutionRoles",
+      "Effect": "Allow",
+      "Action": "iam:PassRole",
+      "Resource": [
+        "arn:aws:iam::125650147728:role/service-role/AmazonSageMaker-ExecutionRole-20260925T163023",
+        "arn:aws:iam::125650147728:role/service-role/AmazonSageMaker-ExecutionRole-20260925T130655"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "iam:PassedToService": "sagemaker.amazonaws.com"
+        }
+      }
+    },
+    {
+      "Sid": "CompetitionBucketObjects",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:DeleteObject",
+        "s3:GetObjectVersion",
+        "s3:AbortMultipartUpload"
+      ],
+      "Resource": "arn:aws:s3:::amazon-ml-challenge-26-sagemaker-125650147728/*"
+    },
+    {
+      "Sid": "CompetitionBucketListing",
+      "Effect": "Allow",
+      "Action": [
+        "s3:ListBucket",
+        "s3:ListBucketMultipartUploads",
+        "s3:GetBucketLocation"
+      ],
+      "Resource": "arn:aws:s3:::amazon-ml-challenge-26-sagemaker-125650147728"
+    },
+    {
+      "Sid": "ReadOwnQuotasAndLogs",
+      "Effect": "Allow",
+      "Action": [
+        "servicequotas:GetServiceQuota",
+        "servicequotas:ListServiceQuotas",
+        "servicequotas:RequestServiceQuotaIncrease",
+        "servicequotas:ListRequestedServiceQuotaChangeHistory",
+        "logs:GetLogEvents",
+        "logs:DescribeLogStreams",
+        "logs:DescribeLogGroups",
+        "cloudwatch:GetMetricStatistics"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
