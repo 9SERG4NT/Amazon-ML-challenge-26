@@ -97,6 +97,7 @@ Unless noted, the scores are on the DEV-10 **evaluation slice**: 20% of the DEV-
 | M-v2 | 2026-09-25 | M-v1 + 8 soft word-alignment features (52 in total); exclusive, threshold 0.725 | 99.45% | 46.9 | 0.9894 | 0.9959 | 0.9772 | 0.9826 / 0.9899 | — | Scored on EC2 from the saved M-v2 predictions |
 | M-v3 | 2026-09-25 | 2 stages: stage 1 cross-fitted (3 folds) + stage 2 on stage-1 probability context; exclusive, expected-F | 99.45% | 46.9 | **0.9906** | 0.9963 | 0.9794 | 0.9814 / 0.9911 | — | Threshold 0.725 instead: 0.9904 (singletons 0.9935). EC2, DEV-10 |
 | **FULL-v1** (M-v3) | 2026-09-25 | M-v3 on the **full** data: fit 30% of train S1, scored on the full-density eval slice (441,521 S1); exclusive, gated expected-F (gate 0.5) | 98.32% | 47.5 | **0.9813** | 0.9952 | 0.9544 | 0.9774 / 0.9815 | **0.96** (public) | Perfect matcher on these candidates: 0.9947. India 0.9778, US 0.9837. Top of the public leaderboard: 0.99. The 0.02 gap to eval is a train/test shift (see "Leaderboard gap" below) |
+| **M-v5** | 2026-09-26 | Test-like universe (BLK-v4b@20-tlu40) + FEAT-v3 (number gap) + MATCH-v6 (75% fitted, lr 0.1); gated expected-F (gate 0.55). **Test-like eval slice**, not comparable with the full-universe rows | 98.69% | 47.8 | **0.9852** | 0.9957 | 0.9644 | 0.9808 / 0.9854 | pending | Perfect matcher on these candidates: 0.9959. India 0.9818, US 0.9875. `num_x_edit` carries 10.9% of the stage-1 gain |
 
 ---
 
@@ -138,6 +139,37 @@ Copy the template below for each run, newest entry first. Record every run, incl
 - Conclusion: keep / drop / iterate
 - Next step:
 -->
+
+### M-v5 — the test-like universe, number-gap features, 75% of entities fitted
+
+- **Date:** 2026-09-26 (00:01 IST)
+- **Versions:** NORM-v2 + **BLK-v4b@20-tlu40** + **FEAT-v3** + **MATCH-v6** (preset M-v5). Run by chain8 on the runner (`pipe6/`).
+- **Hypothesis:** training in a universe with the test's distractor density (~2.3 per S1) teaches the model test-like priors. The number-gap features (+0.0014 on DEV-10) and three times the fitted entities help on top.
+
+**Methodology**
+- **Universe:** every eval S1, plus 40% of the other train S1 entities with their true targets. That leaves 1,147,088 S1 (India 458,739, US 688,349) and 6.65M targets. Both countries have **5.80 targets and 2.34 distractors per S1**, against 5.76–5.82 and 2.34–2.35 in the test set.
+- **Blocking (top-20):** 54.8M train candidates (47.8 per S1). Eval pair recall **98.69%**, against 98.32% in the full universe, since fewer rival records sit in each region. Test: 83.3M candidates, as before.
+- **Features:** FEAT-v3 (55), computed in 1,862 s.
+- **Model:** MATCH-v6, learning rate 0.1, fitted on all non-eval S1 of the universe: 33.7M training rows, 7.15% positive. Stage-1 folds took 236–289 s (388 / 547 / 463 trees); stage-2 folds 134–173 s (260 / 195 / 152 trees). Train stage 3,081 s, peak 23.2 GB. The whole run took 53 minutes.
+
+**Results (test-like eval slice, 441,521 S1)**
+
+| Score / rule | F0.5 | P | R | Singletons | Others |
+|---|---:|---:|---:|---:|---:|
+| Perfect matcher on these candidates | 0.9959 | | | | |
+| Stage 1, gated expected F (gate 0.7) | 0.9834 | 0.9952 | 0.9604 | 0.9764 | 0.9839 |
+| **Stage 2, gated expected F (gate 0.55)** | **0.9852** | 0.9957 | 0.9644 | 0.9808 | 0.9854 |
+| Stage 2, gated expected F (gate 0.6) | 0.9852 | | | 0.9841 | 0.9852 |
+| Stage 2, expected F (floor 0.4) | 0.9851 | | | 0.9764 | 0.9856 |
+
+India 0.9818, US 0.9875.
+
+- **Top stage-1 features by gain:** `margin_vs_other_s1` 56.7%, `rank_for_t` 20.0%, **`num_x_edit` 10.9%**, `al_b_worst` 1.3%, `al_b_n_unaligned` 1.2%, `a_b_in_a` 1.1%, `num_x_loggap` 1.0%. The number-gap features carry 12% of the gain. **Stage 2:** `p1_margin_t` 54.6%, `p1` 43.7%.
+- **Test set:** 5,672,319 links for 1,630,014 of 1,732,544 S1 (94.1% linked). France 0.939 linked with 3.14 links per S1; India 3.29, US 3.31. The validator passes. md5 of `matching_results.tsv`: `9c66b92887f0eced0291bc42f78d8b2f`.
+
+**Analysis**
+- The test-like score (0.9852) is not comparable with FULL-v1's full-universe 0.9813. The test-like universe is easier in one respect (half the rival S1 records, so blocking and exclusivity lose less) and harder in another (twice the distractors per S1). chain10 scores the frozen FULL-v1 model in this universe, to put the two on one scale.
+- The leaderboard decides: M-v5 is the current submission in `output/`.
 
 ### France — generic names draw about 3× the false links (FEAT-v4)
 

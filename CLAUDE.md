@@ -52,7 +52,9 @@ then `python make_submission.py --team "<name>"` (repo root) validates them and 
 `<team>_submission.zip` in the required layout. The user wants the best complete run's TSVs kept in
 the local `output/` for leaderboard uploads: download them after every full run that beats the
 current best (presigned GET + curl), and check the md5 against the runner. `output/` now holds
-FULL-v1 (`predictions/M-v3/`, eval F0.5 0.9813, **public leaderboard 0.96**; top of the board 0.99).
+**M-v5** (test-like eval 0.9852, leaderboard pending; md5 `9c66b928…`). Before it came FULL-v1
+(`predictions/M-v3/`, eval F0.5 0.9813, **public leaderboard 0.96**; top of the board 0.99),
+which is kept in `output/runs/`.
 Output naming: `output/matching_results.tsv` and `output/candidate_pairs.tsv` are the current submission
 (exact names required). Every complete run also goes to `output/runs/<version key>/`, named like
 `predictions/<version key>/` in S3, and `output/README.md` is the manifest: run name, version key,
