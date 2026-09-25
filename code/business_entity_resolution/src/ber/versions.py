@@ -115,6 +115,9 @@ MATCH = _index(
                       "cut scoring time (full-data models grow ~1,400 trees). On tiny data it moved stage-1 "
                       "probabilities by up to 0.31 and stage-2 ones further (their inputs shift): not a free speedup",
           pred_margin=10.0),
+    Match("MATCH-v5", "MATCH-v2 with learning rate 0.1 instead of 0.05: about half the trees (MATCH-v2 grew "
+                      "~1,400 on full data), so training and scoring take about half the time",
+          lgb=(("learning_rate", 0.1),)),
 )
 
 PRESETS = {

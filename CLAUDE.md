@@ -160,7 +160,10 @@ BLK-v4b@40n20 measures both depth curves (`recall_at_k`, `noaddr_recall_at_k` in
   `/opt/mlc26/venv` (Python 3.12, pinned deps), `/opt/mlc26/pipe*/src` (code versions),
   `/opt/mlc26/runs/full` (the full-data work dir, version-keyed), `/opt/mlc26/logs/`, data in
   `/data/dataset`. Long jobs run as `nohup` chains (`/opt/mlc26/chain*.sh`) that wait on marker
-  files in `logs/`. Run memory-heavy stages (blocking peaks ~45 GB) one at a time. A systemd
+  files in `logs/`. Run memory-heavy stages (blocking peaks ~45 GB) one at a time, and **never run a
+  second LightGBM/OpenMP job beside a full run, even under `nice 19`**: the two thread pools fight
+  over the 8 cores and full-data stage-1 scoring took 2.4 h instead of ~1 h. Full-data models grow
+  ~1,300–1,500 trees (lr 0.05); scoring 188M pairs with 3 of them is the slowest step. A systemd
   timer **stops** the instance after 60 minutes with load below 0.3; start it again with
   `StartInstances`. Bootstrap: `infra/aws/ec2/user_data.sh`. Code updates: tar `src/` plus
   `tools/validate_submission.py`, PUT to `code/<name>.tar.gz` with a presigned URL, then
