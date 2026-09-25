@@ -118,6 +118,51 @@ def support_features(S: pl.DataFrame, T: pl.DataFrame, anchor_p: float = 0.5, ma
                           pl.all().exclude("sup_n").cast(pl.Float32).fill_null(-1)))
 
 
+def frequent_tokens(Q: pl.DataFrame, T: pl.DataFrame, col: str, min_share: float = 0.01) -> pl.DataFrame:
+    """Per country, the tokens of ``col`` in more than ``min_share`` of its records (S1 and targets).
+
+    These are the cities, regions, street types, legal forms and generic business words
+    ("rue", "nantes", "sarl", "maison"; "st", "tx", "inc", "care"), learned from each country's own
+    records, so an unseen country (France) gets them too. (country, tok)
+    """
+    recs = pl.concat([Q.select(pl.lit(0, pl.UInt8).alias("side"), "rid", "country", col),
+                      T.select(pl.lit(1, pl.UInt8).alias("side"), "rid", "country", col)])
+    n = recs.group_by("country").len().rename({"len": "n"})
+    toks = (recs.select("side", "rid", "country", pl.col(col).str.split(" ").alias("tok")).explode("tok")
+            .filter(pl.col("tok").is_not_null() & (pl.col("tok") != "")).unique(["side", "rid", "tok"]))
+    return (toks.group_by("country", "tok").len().join(n, on="country")
+            .filter(pl.col("len") > min_share * pl.col("n")).select("country", "tok"))
+
+
+def distinctive(df: pl.DataFrame, col: str, frequent: pl.DataFrame) -> pl.Series:
+    """``col`` without its country's frequent tokens, in the original order ('' when nothing is left)."""
+    long = (df.select("rid", "country", pl.col(col).str.split(" ").alias("tok")).explode("tok")
+            .with_columns(pl.int_range(pl.len()).over("rid").alias("pos"))
+            .filter(pl.col("tok").is_not_null() & (pl.col("tok") != ""))
+            .join(frequent, on=["country", "tok"], how="anti"))
+    red = long.sort("rid", "pos").group_by("rid", maintain_order=True).agg(pl.col("tok").str.join(" ").alias("red"))
+    return df.select("rid").join(red, on="rid", how="left", maintain_order="left")["red"].fill_null("")
+
+
+def _distinctive_features(c: pl.DataFrame) -> dict:
+    """Name and address similarity on their distinctive parts (frequent tokens removed; -1 when a side is empty).
+
+    A shared generic name ("nantes maison" and "nantes maison sas") or a shared city and region
+    inflates the full-string similarities; what is left decides whether two records are one business.
+    """
+    f = {}
+    for key, a_col, b_col in (("nr", "a_name_red", "b_name_red"), ("ar", "a_addr_red", "b_addr_red")):
+        a, b = c[a_col].to_list(), c[b_col].to_list()
+        empty = (c[a_col] == "").to_numpy() | (c[b_col] == "").to_numpy()
+        for name, scorer in (("ratio", fuzz.ratio), ("tset", fuzz.token_set_ratio)):
+            f[f"{key}_{name}"] = np.where(empty, -1, _pairwise(a, b, scorer)).astype(np.float32)
+        f[f"{key}_len_a"] = c[a_col].str.count_matches(r"\S+").to_numpy().astype(np.float32)
+    ba, ab = _token_containment(c["a_addr_red"].to_list(), c["b_addr_red"].to_list())
+    empty = (c["a_addr_red"] == "").to_numpy() | (c["b_addr_red"] == "").to_numpy()
+    f["ar_b_in_a"], f["ar_a_in_b"] = np.where(empty, -1, ba).astype(np.float32), np.where(empty, -1, ab).astype(np.float32)
+    return f
+
+
 def _token_containment(a: list, b: list) -> tuple[np.ndarray, np.ndarray]:
     """Share of B's tokens found in A, and of A's tokens found in B."""
     ba = np.zeros(len(a), np.float32)
@@ -132,10 +177,15 @@ def _token_containment(a: list, b: list) -> tuple[np.ndarray, np.ndarray]:
 
 
 def string_features(cand: pl.DataFrame, Q: pl.DataFrame, T: pl.DataFrame, chunk: int = 2_000_000,
-                    number_gap: bool = False) -> pl.DataFrame:
-    """Similarity features for every row of ``cand`` (q_rid, t_rid, ...); ``number_gap`` adds 3 (FEAT-v3)."""
-    Qs = Q.select("rid", *Q_COLS).rename({c: f"a_{c}" for c in Q_COLS})
-    Ts = T.select("rid", *T_COLS).rename({c: f"b_{c}" for c in T_COLS})
+                    number_gap: bool = False, distinct: bool = False) -> pl.DataFrame:
+    """Similarity features for every row of ``cand`` (q_rid, t_rid, ...).
+
+    ``number_gap`` adds 3 (FEAT-v3); ``distinct`` adds 8 on the distinctive parts (FEAT-v4), and then
+    Q and T must carry ``name_red`` / ``addr_red`` (see ``distinctive``).
+    """
+    red = ["name_red", "addr_red"] if distinct else []
+    Qs = Q.select("rid", *Q_COLS, *red).rename({c: f"a_{c}" for c in Q_COLS + red})
+    Ts = T.select("rid", *T_COLS, *red).rename({c: f"b_{c}" for c in T_COLS + red})
     outs = []
     for s in range(0, cand.height, chunk):
         c = (cand.slice(s, chunk).select("q_rid", "t_rid")
@@ -177,6 +227,8 @@ def string_features(cand: pl.DataFrame, Q: pl.DataFrame, T: pl.DataFrame, chunk:
                                     c["b_addr_n"].str.count_matches(" ").to_numpy() + 1, 0).astype(np.float32)
         for col in ("has_addr", "is_web", "has_alias", "non_ascii"):
             f[f"b_{col}"] = c[f"b_{col}"].cast(pl.Float32).to_numpy()
+        if distinct:
+            f.update(_distinctive_features(c))
         outs.append(pl.DataFrame(f))
     return pl.concat(outs)
 
@@ -235,13 +287,25 @@ def align_features(cand: pl.DataFrame, Q: pl.DataFrame, T: pl.DataFrame, idf: pl
     return pl.concat(outs).with_columns(pl.all().cast(pl.Float32).fill_null(-1))
 
 
-def context_features(cand: pl.DataFrame, Q: pl.DataFrame, T: pl.DataFrame) -> pl.DataFrame:
-    """Rank/competition features from the blocking scores (row order preserved), one country at a time."""
+def context_features(cand: pl.DataFrame, Q: pl.DataFrame, T: pl.DataFrame, tfreq: bool = False) -> pl.DataFrame:
+    """Rank/competition features from the blocking scores (row order preserved), one country at a time.
+
+    ``tfreq`` adds how many targets of the country share the S1's and the target's core name (FEAT-v4).
+    """
     part = country_codes(cand["q_rid"].to_numpy(), Q)
-    return by_partition(cand.select("q_rid", "t_rid", "src", "bscore"), part, lambda c: _context_features(c, Q, T))
+    return by_partition(cand.select("q_rid", "t_rid", "src", "bscore"), part,
+                        lambda c: _context_features(c, Q, T, tfreq))
 
 
-def _context_features(c: pl.DataFrame, Q: pl.DataFrame, T: pl.DataFrame) -> pl.DataFrame:
+def _context_features(c: pl.DataFrame, Q: pl.DataFrame, T: pl.DataFrame, tfreq: bool = False) -> pl.DataFrame:
+    extra = []
+    if tfreq:
+        t_freq = T.group_by("country", "name_core").agg(pl.len().alias("t_freq"))
+        c = (c.join(Q.select(pl.col("rid").alias("q_rid"), "country", "name_core").join(t_freq, on=["country", "name_core"], how="left")
+                    .select("q_rid", pl.col("t_freq").fill_null(0).alias("a_name_tfreq")), on="q_rid", how="left", maintain_order="left")
+             .join(T.select(pl.col("rid").alias("t_rid"), "country", "name_core").join(t_freq, on=["country", "name_core"], how="left")
+                    .select("t_rid", pl.col("t_freq").alias("b_name_tfreq")), on="t_rid", how="left", maintain_order="left"))
+        extra = ["a_name_tfreq", "b_name_tfreq"]
     name_freq = Q.group_by("country", "name_core").agg(pl.len().alias("s1_name_freq"))
     qf = Q.select("rid", "country", "name_core").join(name_freq, on=["country", "name_core"], how="left")
     tf = (T.select("rid", "country", "name_core").join(name_freq, on=["country", "name_core"], how="left")
@@ -266,7 +330,7 @@ def _context_features(c: pl.DataFrame, Q: pl.DataFrame, T: pl.DataFrame) -> pl.D
           .otherwise(pl.col("t_best")).fill_null(0).alias("t_best_other"),
     ).with_columns((pl.col("bscore") - pl.col("t_best_other")).alias("margin_vs_other_s1"))
     return c.select("a_name_freq", "b_name_freq", "rank_in_src", "rank_in_q", "gap_to_best_src", "n_cand_q",
-                    "t_indegree", "rank_for_t", "margin_vs_other_s1").with_columns(pl.all().cast(pl.Float32))
+                    "t_indegree", "rank_for_t", "margin_vs_other_s1", *extra).with_columns(pl.all().cast(pl.Float32))
 
 
 def build_features(cand: pl.DataFrame, Q: pl.DataFrame, T: pl.DataFrame, align: bool = True,

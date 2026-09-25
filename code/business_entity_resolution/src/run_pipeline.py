@@ -31,6 +31,7 @@ import sys
 import time
 from pathlib import Path
 
+import lightgbm as lgb
 import numpy as np
 import polars as pl
 
@@ -40,7 +41,8 @@ from ber.aliases import learn_aliases
 from ber.blocking import (candidates_at_k, feature_frame, generate_candidates, learn_region_merges, noaddr_recall_at_k,
                           recall_at_k, recall_report)
 from ber.data import dev_sample, load_split, load_truth
-from ber.features import align_features, context_features, name_idf, string_features, support_features
+from ber.features import (align_features, context_features, distinctive, frequent_tokens, name_idf, string_features,
+                          support_features)
 from ber.metrics import macro_f05
 from ber.normalize import normalize, token_frames
 from ber.partition import country_codes
@@ -108,6 +110,40 @@ def learning_pairs(P: Paths) -> pl.DataFrame:
         split.filter(pl.col("role") != EVAL).select("q_rid"), on="q_rid", how="semi")
 
 
+def train_universe(a, bv: V.Block, P: Paths) -> tuple[np.ndarray, np.ndarray] | None:
+    """Test-like train universe: (kept S1 rids, kept target rids) as boolean masks, or None for the full one.
+
+    Every eval S1 stays, so the eval slice is the same 441,521 entities in every universe; a share
+    ``keep_nonevals`` of the other S1 entities stays too, and the rest leave together with their true
+    targets. The distractors all stay, so there are more of them per S1, as in the test set.
+    """
+    if bv.keep_nonevals >= 1:
+        return None
+    role = pl.read_parquet(P.prep / "split.parquet")["role"].to_numpy()
+    u = np.random.default_rng(a.seed + 2).random(len(role))  # its own draw: the split and folds are untouched
+    keep_q = (role == EVAL) | (u < bv.keep_nonevals)
+    pairs = pl.read_parquet(P.prep / "pairs.parquet")
+    n_t = pl.read_parquet(P.prep / "T_train.parquet", columns=["rid"]).height
+    keep_t = np.ones(n_t, bool)
+    keep_t[pairs["t_rid"].to_numpy()[~keep_q[pairs["q_rid"].to_numpy()]]] = False
+    return keep_q, keep_t
+
+
+def universe_report(Q: pl.DataFrame, T: pl.DataFrame, universe: tuple[np.ndarray, np.ndarray],
+                    pairs: pl.DataFrame) -> dict:
+    """Per country: S1, targets and distractors per S1 left in a train universe (test: ~5.8 and ~2.3)."""
+    keep_q, keep_t = universe
+    linked = np.zeros(len(keep_t), bool)
+    linked[pairs["t_rid"].to_numpy()[keep_q[pairs["q_rid"].to_numpy()]]] = True
+    qc, tc = Q["country"].to_numpy(), T["country"].to_numpy()
+    out = {}
+    for c in np.unique(qc):
+        nq, nt = int((keep_q & (qc == c)).sum()), int((keep_t & (tc == c)).sum())
+        nd = int((keep_t & ~linked & (tc == c)).sum())
+        out[str(c)] = {"s1": nq, "targets": nt, "targets_per_s1": round(nt / nq, 2), "distractors_per_s1": round(nd / nq, 2)}
+    return out
+
+
 # ---------------------------------------------------------------------- prep
 def stage_prep(a, rv: V.RunVersions, P: Paths) -> dict:
     nv = rv.norm
@@ -172,9 +208,14 @@ def stage_block(a, rv: V.RunVersions, P: Paths) -> dict:
     P.block.mkdir(parents=True, exist_ok=True)
     write_json(P.block / "region_spec.json", spec or {})
     out = {"region_spec": spec}
+    universe = train_universe(a, bv, P)
     for split in ("train", "test"):
         Q = pl.read_parquet(P.prep / f"Q_{split}.parquet")
         T = pl.read_parquet(P.prep / f"T_{split}.parquet")
+        if split == "train" and universe is not None:
+            out["universe"] = universe_report(Q, T, universe, pl.read_parquet(P.prep / "pairs.parquet"))
+            log(f"test-like universe: {out['universe']}")
+            Q, T = Q.filter(pl.Series(universe[0])), T.filter(pl.Series(universe[1]))
         parts = []
         for country in Q["country"].unique().sort().to_list():  # one country at a time bounds memory
             Qc, Tc = Q.filter(pl.col("country") == country), T.filter(pl.col("country") == country)
@@ -192,7 +233,7 @@ def stage_block(a, rv: V.RunVersions, P: Paths) -> dict:
         log(f"block {split}: {C.height:,} candidates, {C.height / Q.height:.1f} per S1")
         out[split] = {"candidates": C.height, "per_s1": C.height / Q.height}
         if split == "train":
-            pairs = pl.read_parquet(P.prep / "pairs.parquet")
+            pairs = pl.read_parquet(P.prep / "pairs.parquet").join(Q.select(pl.col("rid").alias("q_rid")), on="q_rid", how="semi")
             ev = pl.read_parquet(P.prep / "split.parquet").filter(pl.col("role") == EVAL).select("q_rid")
             pairs_ev = pairs.join(ev, on="q_rid", how="semi")
             out["train"]["recall_all"] = recall_report(C, pairs)
@@ -213,6 +254,7 @@ def stage_block(a, rv: V.RunVersions, P: Paths) -> dict:
 def stage_features(a, rv: V.RunVersions, P: Paths) -> dict:
     fv = rv.feat
     out = {}
+    universe = train_universe(a, rv.block, P)
     for split in ("train", "test"):
         d = P.feat / split
         d.mkdir(parents=True, exist_ok=True)
@@ -220,9 +262,19 @@ def stage_features(a, rv: V.RunVersions, P: Paths) -> dict:
             old.unlink()
         Q = pl.read_parquet(P.prep / f"Q_{split}.parquet")
         T = pl.read_parquet(P.prep / f"T_{split}.parquet")
+        if split == "train" and universe is not None:  # name frequencies and IDF count only the S1 records in it
+            Q, T = Q.filter(pl.Series(universe[0])), T.filter(pl.Series(universe[1]))
+        if fv.distinct:  # each country's frequent tokens, learned from this split's own records
+            for col, red in (("name_core", "name_red"), ("addr_n", "addr_red")):
+                frequent = frequent_tokens(Q, T, col)
+                Q, T = (Q.with_columns(distinctive(Q, col, frequent).alias(red)),
+                        T.with_columns(distinctive(T, col, frequent).alias(red)))
+                out.setdefault("frequent_tokens", {}).setdefault(split, {})[col] = dict(
+                    frequent.group_by("country").len().sort("country").rows())
+            log(f"features {split}: frequent tokens per country {out['frequent_tokens'][split]}")
         C = pl.read_parquet(P.block / f"cand_{split}.parquet")
         # the context features need every candidate at once; the rest are row-wise
-        ctx = context_features(C, Q, T)
+        ctx = context_features(C, Q, T, tfreq=fv.distinct)
         idf = name_idf(Q) if fv.align else None
         base = C.select("q_rid", "t_rid", pl.col("src").cast(pl.Float32), "bscore", "cos_name", "cos_addr",
                         pl.col("noaddr_pass").cast(pl.Float32))
@@ -230,7 +282,7 @@ def stage_features(a, rv: V.RunVersions, P: Paths) -> dict:
         for i, s in enumerate(range(0, C.height, n)):
             c = C.slice(s, n)
             # same columns, same order as ber.features.build_features
-            cols = [base.slice(s, n), string_features(c, Q, T, number_gap=fv.number_gap), ctx.slice(s, n)]
+            cols = [base.slice(s, n), string_features(c, Q, T, number_gap=fv.number_gap, distinct=fv.distinct), ctx.slice(s, n)]
             if fv.align:
                 cols.append(align_features(c, Q, T, idf))
             part = pl.concat(cols, how="horizontal")
@@ -347,9 +399,49 @@ def _stage2_extra(C: pl.DataFrame, p1: np.ndarray, T: pl.DataFrame | None,
     return frame.to_numpy().astype(np.float32, copy=False), frame.columns  # all columns are Float32 already
 
 
+def _stage_frozen(a, rv: V.RunVersions, P: Paths) -> dict:
+    """Score the train split with the fold models of run <NORM>__<frozen_from>: no training, no test scores.
+
+    Fit rows get the fold model that did not see their entity (the source run's folds: same seed),
+    every other row the mean, exactly as in the source run.
+    """
+    mv = rv.match
+    src = P.run.parent / f"{rv.norm.id}__{mv.frozen_from}"
+    role = pl.read_parquet(P.prep / "split.parquet")["role"].to_numpy()
+    if mv.fit_rest:
+        role = np.where(role == REST, FIT, role).astype(np.int8)
+    fold = np.random.default_rng(a.seed + 1).integers(0, mv.folds, len(role)).astype(np.int8)
+    tr_parts = _parts(P, "train")
+    load = lambda tag: [lgb.Booster(model_file=str(src / f"{tag}_fold{f}.txt")) for f in range(mv.folds)]
+    s1 = load("stage1")
+    # the models' own columns, picked by name: a later FEAT version that only adds columns works too
+    cols = s1[0].feature_name()
+    missing = sorted(set(cols) - set(pl.read_parquet_schema(tr_parts[0])))
+    if missing:
+        raise SystemExit(f"{P.feat} lacks features the stage-1 models in {src} need: {missing}")
+    p1 = _predict_parts(s1, tr_parts, cols, role, fold)
+    log(f"stage 1 scored the train split with the models of {src.name}")
+    C = pl.read_parquet(P.block / "cand_train.parquet", columns=["q_rid", "t_rid", "src"])
+    scores = C.with_columns(pl.Series("p1", p1))
+    if mv.stages == 2:
+        text = (pl.read_parquet(P.prep / "T_train.parquet", columns=["rid", "name_core", "name_nosp", "addr_n"])
+                if mv.support else None)
+        part = country_codes(C["q_rid"].to_numpy(), pl.read_parquet(P.prep / "Q_train.parquet", columns=["rid", "country"]))
+        extra, extra_cols = _stage2_extra(C, p1, text, part)
+        s2 = load("stage2")
+        if s2[0].feature_name() != cols + extra_cols:
+            raise SystemExit(f"the stage-2 models in {src} expect other features")
+        scores = scores.with_columns(pl.Series("p2", _predict_parts(s2, tr_parts, cols, role, fold, extra=extra)))
+        log("stage 2 scored the train split")
+    scores.write_parquet(P.run / "scores_train.parquet")
+    return {"frozen_from": src.name, "rows": C.height}
+
+
 def stage_train(a, rv: V.RunVersions, P: Paths) -> dict:
     mv = rv.match
     P.run.mkdir(parents=True, exist_ok=True)
+    if mv.frozen_from:
+        return _stage_frozen(a, rv, P)
     role = pl.read_parquet(P.prep / "split.parquet")["role"].to_numpy()
     if mv.fit_rest:  # rest entities become fit entities: cross-fitted, out-of-fold predictions
         role = np.where(role == REST, FIT, role).astype(np.int8)
@@ -457,6 +549,10 @@ def stage_predict(a, rv: V.RunVersions, P: Paths) -> dict:
             per_country[c] = macro_f05(pred, truth_eval, qc)
     log(f"chosen: {best['score']} {best['rule']}={best['param']} -> eval F0.5={best['f05']:.4f}; "
         + ", ".join(f"{c} {m['f05']:.4f}" for c, m in per_country.items()))
+    result = {"eval": {"oracle": oracle, "best": best, "per_country": per_country,
+                       "table": sorted(table, key=lambda r: -r["f05"])[:25]}}
+    if not (P.run / "scores_test.parquet").exists():  # a frozen-model run scores the train split only
+        return result
 
     # test
     St = pl.read_parquet(P.run / "scores_test.parquet")
@@ -489,8 +585,7 @@ def stage_predict(a, rv: V.RunVersions, P: Paths) -> dict:
                            capture_output=True, text=True)
         test["validator"] = (r.stdout + r.stderr).strip()[-2000:]
         log(f"validator exit {r.returncode}: {r.stdout.strip()[-300:]}")
-    return {"eval": {"oracle": oracle, "best": best, "per_country": per_country,
-                     "table": sorted(table, key=lambda r: -r["f05"])[:25]}, "test": test}
+    return {**result, "test": test}
 
 
 # ---------------------------------------------------------------------- main

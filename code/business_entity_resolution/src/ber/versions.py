@@ -43,6 +43,8 @@ class Block:
     region_min_share: float = 0.002     # region key: last token of at least this share of S1 addresses ...
     region_min_last_ratio: float = 0.6  # ... and the last token in at least this share of its occurrences
     region_min_cross: int = 10          # merge two regions when this many training links cross them
+    keep_nonevals: float = 1.0      # test-like universe: keep this share of non-eval train S1 (with their true
+                                    # targets); the rest leave with their targets, so distractors per S1 rise
 
 
 @dataclass(frozen=True)
@@ -51,6 +53,8 @@ class Feat:
     note: str
     align: bool = True              # soft word alignment of core names (8 features)
     number_gap: bool = False        # closest unmatched numbers: edit distance and numeric gap (3 features)
+    distinct: bool = False          # similarity of the distinctive parts (each country's frequent tokens removed)
+                                    # and how many targets share each core name (10 features)
 
 
 @dataclass(frozen=True)
@@ -64,6 +68,8 @@ class Match:
     lgb: tuple = ()                 # (name, value) overrides of model.DEFAULT_PARAMS
     pred_margin: float | None = None  # stop summing trees once 2*|raw score| exceeds this (LightGBM pred_early_stop)
     fit_rest: bool = False          # also fit the "rest" entities (75% of train S1 instead of 30%; eval unchanged)
+    frozen_from: str | None = None  # score with the fold models of run <NORM>__<frozen_from> instead of training;
+                                    # the train split only, to measure an old model in a new universe
 
     def lgb_params(self) -> dict:
         return dict(self.lgb)
@@ -96,6 +102,11 @@ BLOCK = _index(
                         "(99.45% on DEV-10), because regions hold 10x more rival records", k=40),
     Block("BLK-v4b@40n20", "BLK-v4b@40 with a top-20 name-only pass: measures both recall-vs-depth curves in one "
                            "run (targets without address: 88.7% recall at top-5 on full data)", k=40, k_noaddr=20),
+    Block("BLK-v4b@20-tlu40", "BLK-v4b@20 on a test-like train universe: every eval S1 plus 40% of the other train "
+                              "S1 entities; the others are removed with their true targets. The test has ~2.3 "
+                              "distractors per S1 (train: 1.2) and half the US S1 density, and the leaderboard "
+                              "(0.96) disagreed with the full-universe eval slice (0.9813)",
+          keep_nonevals=0.4),
 )
 
 FEAT = _index(
@@ -104,6 +115,11 @@ FEAT = _index(
                     "flags; rank and competition context; S1 name frequency", align=False),
     Feat("FEAT-v2", "FEAT-v1 + 8 soft word-alignment features (52)"),
     Feat("FEAT-v3", "FEAT-v2 + 3 number-gap features (55)", number_gap=True),
+    Feat("FEAT-v4", "FEAT-v3 + 10 distinctive-part features (65): name and address similarity after removing the "
+                    "tokens found in over 1% of a country's records (cities, regions, street types, legal forms, "
+                    "generic words), and how many targets share the S1's / target's core name. French test S1 are "
+                    "often '<city> <generic word> <legal form>' and got ~3x the false links of US/India S1",
+         number_gap=True, distinct=True),
 )
 
 MATCH = _index(
@@ -123,6 +139,10 @@ MATCH = _index(
                       "instead of 30%, cross-fitted like the fit entities. Eval and early-stop entities are unchanged "
                       "(the split draws them independently of the fit share), so it reuses the cached features",
           lgb=(("learning_rate", 0.1),), fit_rest=True),
+    Match("MATCH-v2-frozen", "the fold models of the FULL-v1 run (BLK-v4b@20, FEAT-v2, MATCH-v2), applied without "
+                             "retraining to another universe's train split: how the leaderboard model scores in a "
+                             "test-like universe. Picks its 52 columns by name, so FEAT-v3 parts (a superset) work",
+          frozen_from="BLK-v4b@20__FEAT-v2__MATCH-v2"),
 )
 
 PRESETS = {

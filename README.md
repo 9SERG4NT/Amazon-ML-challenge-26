@@ -27,16 +27,18 @@ normalise ──> block ──> features ──> LightGBM stage 1 ──> stage 
 
 ## Results so far
 
-| Version | Data | F0.5 | Precision | Recall |
-|---|---|---:|---:|---:|
-| M-v1: single model, 44 features | 10% dev sample | 0.9882 | 0.9954 | 0.9745 |
-| M-v2: + soft word alignment | 10% dev sample | 0.9894 | 0.9959 | 0.9772 |
-| M-v3: + stage 2, expected-F rule | 10% dev sample | **0.9906** | 0.9963 | 0.9794 |
-| M-v3 | full data | *running* | | |
+| Version | Data | F0.5 | Precision | Recall | Public leaderboard |
+|---|---|---:|---:|---:|---:|
+| M-v1: single model, 44 features | 10% dev sample | 0.9882 | 0.9954 | 0.9745 | |
+| M-v2: + soft word alignment | 10% dev sample | 0.9894 | 0.9959 | 0.9772 | |
+| M-v3: + stage 2, expected-F rule | 10% dev sample | 0.9906 | 0.9963 | 0.9794 | |
+| FULL-v1 (M-v3) | full data, 441,521 eval S1 | **0.9813** | 0.9952 | 0.9544 | **0.96** |
 
-Blocking on the full data finds 98.3% of true links (targets without an address: 88.7%), so
-deeper blocking is the next step. Every experiment, with methods and numbers:
-[`method_result.md`](method_result.md).
+The leaderboard disagrees with the full-data eval slice because the test set has **twice as
+many distractors per S1** as train (about 2.3 against 1.2, derived from the per-source record
+counts). The next run trains and validates in a test-like universe built from the train data
+(`BLK-v4b@20-tlu40`), with number-gap features (FEAT-v3). Every experiment, with methods and
+numbers: [`method_result.md`](method_result.md).
 
 ## Repository
 

@@ -33,12 +33,18 @@ python run_pipeline.py ... --preset M-v4            # another end-to-end version
 python run_pipeline.py ... --feat FEAT-v3 --stages features,train,predict   # swap one component
 python run_pipeline.py ... --match MATCH-v6 --stages train,predict   # new matcher on cached blocking/features
 python run_pipeline.py ... --sample 0.01            # end-to-end smoke run, ~1 min, ~6 GB RAM
+# test-like train universe (the validation that tracks the leaderboard) and the frozen leaderboard model in it
+python run_pipeline.py ... --block BLK-v4b@20-tlu40 --feat FEAT-v3 --match MATCH-v6
+python run_pipeline.py ... --block BLK-v4b@20-tlu40 --match MATCH-v2-frozen --stages block,features,train,predict
 
 # DEV-10 experiments (cache dir holds dev_Q/dev_T/dev_pairs/dev_features_v2/dev_part/...)
 python -m experiments.dev_stack <cache>                              # stage 1 vs stage 2
 python -m experiments.dev_decide <cache> dev_scores_v3.parquet p2    # decision rules on saved scores
 python -m experiments.dev_errors <cache> dev_scores_v3.parquet p2 0.725
 python -m experiments.dev_v3 <cache>                                 # FEAT-v3 number gap + support features
+# full-data work dir: eval-loss breakdown with examples; train/test shift checks (leak, stats, preds)
+python -m experiments.full_errors <work> NORM-v2__BLK-v4b@20__FEAT-v2__MATCH-v2 p2 gated_ef 0.5 12
+python -m experiments.shift_check <work> leak,stats,preds <dataset_dir>
 ```
 
 Final package: copy the chosen run's TSVs from `s3://…/predictions/<version>/` into `output/`,
@@ -46,7 +52,9 @@ then `python make_submission.py --team "<name>"` (repo root) validates them and 
 `<team>_submission.zip` in the required layout. The user wants the best complete run's TSVs kept in
 the local `output/` for leaderboard uploads: download them after every full run that beats the
 current best (presigned GET + curl), and check the md5 against the runner. `output/` now holds
-FULL-v1 (`predictions/M-v3/`, eval F0.5 0.9813).
+FULL-v1 (`predictions/M-v3/`, eval F0.5 0.9813, **public leaderboard 0.96**; top of the board 0.99).
+The user has 1–2 leaderboard submissions a day: use them for milestone models, never to tune on the
+public subset.
 
 There is no test suite or linter. The format check is the official validator
 (`resources/student_resource/utils/validate_submission.py`, stdlib only); `run_pipeline.py`
@@ -153,6 +161,28 @@ blocking (-0.0053).** 2.9% of true links are candidates but are not predicted (1
 so DEV-10 overstated F0.5 by 0.009. Test: 94.1% of S1 get a link in every country, France
 included (3.18 links/S1; eval truth 94.4%, 3.46). The validator passes.
 
+**Leaderboard: FULL-v1 scored 0.96 (public), top 0.99 — the eval slice (0.9813) does not track
+the test.** No leak (row order and ID numbers are uncorrelated with the truth). The test has
+**twice the distractors per S1**: S2 and S3 hold equal distractor counts in train (1,340,997 vs
+1,340,857), so the S3−S2 excess gives the matched records. Test: 3.3–3.5 matches but **2.2–2.35
+distractors per S1** (train 1.15–1.31), i.e. ~40% of test targets (train 26%). The US test has half
+the train's S1 density with the same absolute distractor count. Distractors are "clean" records
+(full address and number, never web/alias names). On test the model is as confident and links as
+much as on eval, so the extra errors are confident lookalike picks, not threshold effects. Fix,
+validation first: **test-like universe `BLK-v4b@20-tlu40`**. It keeps every eval S1 and 40% of the
+other train S1 entities, and drops the rest with their true targets, giving ~2.3 distractors per S1.
+Train and choose the rule there (MATCH-v6); `MATCH-v2-frozen` scores the leaderboard model there, to
+check that this universe reproduces ~0.96. `experiments/shift_check.py` and `full_errors.py` hold
+the diagnostics.
+
+Full-data error analysis (FULL-v1 eval, loss 0.0187): **recall is 0.0145 of it.** Of the 70.7k
+missed links (4.6%), 38% are candidates not chosen by the rule (house number replaced or perturbed,
+a name word swapped), 36% were never candidates (initials/acronyms, invented names, typo-heavy
+names that rank below 20 lookalikes), and 26% were lost to another S1 (91% no-address targets
+with a name several S1 records share: mostly irreducible). Wrong links (5.8k) are 85% distractors.
+DEV-10 `dev_v3`: FEAT-v3 number-gap features lift stage 1 from 0.9894 to 0.9907 (threshold) and
+from 0.9887 to 0.9903 (expected-F), so the TLU run uses FEAT-v3.
+
 FULL-v1 cost on the EC2 runner (M-v3, 8 cores): prep 386 s, block 1,202 s (peak 44.4 GB during US
 blocking: 1.32M S1 x 6.19M targets), features 2,344 s (104.7M train + 83.3M test candidates, 47.5
 and 48.1 per S1). Stage-1 folds 638–718 s (1,277–1,469 trees at lr 0.05, 36.6M training rows,
@@ -204,7 +234,9 @@ the shared eval slice.
   `/data/dataset`. Long jobs run as `nohup` chains (`/opt/mlc26/chain*.sh`) that wait on marker
   files in `logs/`. Run memory-heavy stages (blocking peaks ~45 GB) one at a time, and **never run a
   second LightGBM/OpenMP job beside a full run, even under `nice 19`**: the two thread pools fight
-  over the 8 cores and full-data stage-1 scoring took 2.4 h instead of ~1 h. Full-data models grow
+  over the 8 cores and full-data stage-1 scoring took 2.4 h instead of ~1 h. Small jobs are no
+  exception: a 1% smoke test beside `dev_v3` pushed the load to 16 and slowed both several-fold.
+  Give any side job `OMP_NUM_THREADS=2 POLARS_MAX_THREADS=2`, or queue it behind a marker. Full-data models grow
   ~1,300–1,500 trees (lr 0.05); scoring 188M pairs with 3 of them is the slowest step. A systemd
   timer **stops** the instance after 60 minutes with load below 0.3; start it again with
   `StartInstances`. Bootstrap: `infra/aws/ec2/user_data.sh`. Code updates: tar `src/` plus
@@ -221,10 +253,23 @@ the shared eval slice.
   → `CHAIN5_DONE`. chain6 (`pipe2/`) = `dev_v3` on DEV-10 (`/opt/mlc26/dev10`) → `CHAIN6_DONE`.
   chain7 (`pipe4/`) = 1% smoke test of the new code (`logs/smoke4.log`), then MATCH-v6 train+predict
   on the cached FULL-v1 features (`logs/full_v6.log`) → `predictions/NORM-v2__BLK-v4b@20__FEAT-v2__MATCH-v6/` →
-  `CHAIN7_DONE`. Launch chains detached, e.g. `setsid nohup ./chainN.sh > logs/chainN.out 2>&1 < /dev/null &`.
-  chain7 was first started as `cd … && nohup ./chain7.sh > … &`. The backgrounded subshell kept the
-  command's output pipe open, so the SSM command stayed InProgress, and SSM would have killed the
-  chain at the command's 1-hour timeout. It was relaunched with `setsid` at 15:58 (PID 60518, parent 1).
+  `CHAIN7_DONE`. **chain7 was cancelled at 16:33 with the user's approval, before it started any
+  job**: MATCH-v6 in the full-train universe no longer targets the leaderboard. **chain8** (`pipe6/`)
+  waits for `CHAIN6_DONE` and a clean `smoke6.log` (1% smoke test of the TLU and frozen-model code).
+  It runs `--block BLK-v4b@20-tlu40 --feat FEAT-v3` block+features, then train+predict with the
+  MATCH id in `/opt/mlc26/chain8.match` (default MATCH-v6), logs to `logs/tlu.log`, uploads
+  `predictions/NORM-v2__BLK-v4b@20-tlu40__FEAT-v3__<MATCH>/` and touches `CHAIN8_DONE` (started
+  16:51 UTC). **chain9** (`pipe7/`) waits for `CHAIN8_DONE` and a clean `smoke7.log`, then runs
+  FEAT-v4 features + MATCH-v6 train/predict on chain8's blocking (`logs/tlu_v4.log`,
+  `predictions/NORM-v2__BLK-v4b@20-tlu40__FEAT-v4__MATCH-v6/`, `CHAIN9_DONE`). Both run
+  MATCH-v6: support features (MATCH-v3) added only +0.0001 on DEV-10 in `dev_v3`. The runner's
+  `pipe7/` also registers an unused MATCH-v7 (v6 + support) that was dropped from git.
+  Launch chains detached with an absolute path and no `cd … &&` in front, e.g.
+  `setsid nohup /opt/mlc26/chainN.sh > /opt/mlc26/logs/chainN.out 2>&1 < /dev/null &` (each
+  chain `cd`s itself). With `cd … && …&`, bash keeps a wrapper subshell holding the SSM command's
+  output pipe: the command sits InProgress until its timeout kills the subshell. `setsid` keeps the
+  chain alive through that; without it the chain would die with the subshell. chain7's first launch
+  got stuck this way and was relaunched with setsid at 15:58.
   Logs sync to `experiments/logs/`. After the chains, delete `models/full/scores_*.parquet` from S3
   (multi-GB; the instance role cannot delete by design).
 - **Console links** (the user wants these in every report that touches S3 or SageMaker):

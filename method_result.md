@@ -85,6 +85,7 @@ All rows are measured on DEV-10. **Pair recall** is the share of true links that
 | **BLK-v4b** | 2026-09-25 | v4 + region keys limited to tokens that sit mostly at the end of an address: 16 Indian states, 37 US states; one learned merge (Telangana ↔ Andhra Pradesh) | **99.52%** | **98.35%** | 65.9 | **43 s** | **Current** |
 | BLK-v4b @10 | 2026-09-25 | same, top-10 per source | 99.10% | — | 25.9 | — | Cheaper option for the matcher |
 | **BLK-v4b@20, FULL train** | 2026-09-25 | BLK-v4b top-20 on the **full** data (2.2M S1 x 10.3M targets); eval slice shown | **98.32%** | 94.53% | 47.5 | 703 s (EC2, 8 cores) | Denser competition than DEV-10: -1.1 points. Targets without address: 88.7%. Recall still rising at k=20 |
+| BLK-v4b@40n20, FULL train | 2026-09-25 | top-40 main pass + top-20 name-only pass on the full data; eval slice shown | **98.93%** | 96.43% | 114.4 | 834 s | Main-pass depth 5 / 10 / 20 / 30 / 40 (name-only 20): 95.99 / 97.40 / 98.28 / 98.70 / 98.93% at 44 / 54 / 74 / 94 / 114 candidates per S1. Name-only depth 5 / 10 / 15 / 20 (main 40): 98.82 / 98.88 / 98.91 / 98.93% at 90 / 100 / 108 / 114. Name-only beyond 5 is not worth it; top-30 or top-40 with name-only 5 is the frontier (≈ +0.3 / +0.5 points at +47% / +89% candidates). Test: 200.5M candidates. Peak 53.2 GB |
 
 ### 4.2 End-to-end versions (validation F_0.5)
 
@@ -95,7 +96,7 @@ Unless noted, the scores are on the DEV-10 **evaluation slice**: 20% of the DEV-
 | M-v1 | 2026-09-25 | NORM-v2 + BLK-v4b (top-20 per source) + 44 features + LightGBM (log loss) + exclusive assignment + threshold 0.725 | 99.45% | 46.9 | 0.9882 | 0.9954 | 0.9745 | 0.9805 / 0.9887 | — | Upper bound with a perfect matcher on these candidates: 0.9984. Laptop, DEV-10 |
 | M-v2 | 2026-09-25 | M-v1 + 8 soft word-alignment features (52 in total); exclusive, threshold 0.725 | 99.45% | 46.9 | 0.9894 | 0.9959 | 0.9772 | 0.9826 / 0.9899 | — | Scored on EC2 from the saved M-v2 predictions |
 | M-v3 | 2026-09-25 | 2 stages: stage 1 cross-fitted (3 folds) + stage 2 on stage-1 probability context; exclusive, expected-F | 99.45% | 46.9 | **0.9906** | 0.9963 | 0.9794 | 0.9814 / 0.9911 | — | Threshold 0.725 instead: 0.9904 (singletons 0.9935). EC2, DEV-10 |
-| **FULL-v1** (M-v3) | 2026-09-25 | M-v3 on the **full** data: fit 30% of train S1, scored on the full-density eval slice (441,521 S1); exclusive, gated expected-F (gate 0.5) | 98.32% | 47.5 | **0.9813** | 0.9952 | 0.9544 | 0.9774 / 0.9815 | pending | Perfect matcher on these candidates: 0.9947. India 0.9778, US 0.9837. Test output in `output/` and `predictions/M-v3/` |
+| **FULL-v1** (M-v3) | 2026-09-25 | M-v3 on the **full** data: fit 30% of train S1, scored on the full-density eval slice (441,521 S1); exclusive, gated expected-F (gate 0.5) | 98.32% | 47.5 | **0.9813** | 0.9952 | 0.9544 | 0.9774 / 0.9815 | **0.96** (public) | Perfect matcher on these candidates: 0.9947. India 0.9778, US 0.9837. Top of the public leaderboard: 0.99. The 0.02 gap to eval is a train/test shift (see "Leaderboard gap" below) |
 
 ---
 
@@ -137,6 +138,118 @@ Copy the template below for each run, newest entry first. Record every run, incl
 - Conclusion: keep / drop / iterate
 - Next step:
 -->
+
+### France — generic names draw about 3× the false links (FEAT-v4)
+
+- **Date:** 2026-09-25
+- **How we saw it without labels:** the 1% smoke sample draws test S1 records and test targets independently, so almost no true pair survives: nearly every predicted link is wrong. The M-v3 model linked **16.0% of French S1, against 6.8% of Indian and 4.6% of US S1**, so France gets about 3× the false links of the trained countries.
+- **What the false links look like** (raw test records, S1 → linked target):
+  - Same generic name, different street: "La Teste-de-Buch Maison SARL, 13 Square Clos des Chenes" → "La Teste-de-Buch Maison SAS, 57 RUE RAYMOND DAUGEY"; "Lille Parents SARL, 24 Cour Cacan" → "Lille Parents SARL, 1 Rue Du Chemin De Fer"; "Calais Compagnie SAS" → "Calais Compagnie S.A.S, 74 RUE DE VIC"; "Bordeaux Élémentaire SAS" → "SCI Bordeaux Élémentaire"; "Nantes Maison SARL" → "Nantes Maison SAS".
+  - Invented name on the same street, different number: "TGO Comite SARL, 152 Rue du Jardin Public" → "Rizafaye, N° 35 RUE DU JARDIN PUBLIC".
+- **Why:** French S1 names are often "<city> <generic word> <legal form>", and the test covers a handful of cities (Bordeaux, Lille, Nantes, Dunkerque, Saint-Nazaire…). Many unrelated businesses share such a name. French place names are long multi-token strings ("La Teste-de-Buch", "Nouvelle-Aquitaine", "Pays de la Loire"), so the city and region inflate token-set address similarity. The model, trained on US and India, reads "same name, same city" as a match.
+- **No postal codes:** French addresses carry none, so house-number agreement is not inflated.
+- **Fix, country-agnostic (FEAT-v4 = FEAT-v3 + 10 features):**
+  - Per country, the tokens found in more than 1% of its records (S1 and targets) are frequent. These are cities, regions, street types, legal forms and generic words, learned from each country's own records, so France gets them from its test records.
+  - Name and address similarity is recomputed on the distinctive parts, with those tokens removed: ratio, token-set, containment both ways, and the number of tokens left.
+  - Two counts: how many targets share the S1's core name, and how many share the target's.
+  - The model learns from generic US and Indian names ("Primary Care Group", "Cardiology Care") that a matching generic name is weak evidence, and applies that to France.
+  - The FEAT-v3 columns are unchanged (exact-equality check).
+- **How it is checked:** the TLU eval slice (US and India) must not drop, and the 1% smoke France link rate should fall toward the US and India rates.
+- **1% smoke check** (share of test S1 given a link when almost no true pair survives, so almost all of these links are false):
+
+| Model on the 1% sample | France | India | US |
+|---|---:|---:|---:|
+| M-v3 (FEAT-v2), full-train universe | 16.0% | 6.8% | 4.6% |
+| TLU + FEAT-v2 + MATCH-v6 | 20.0% | 6.9% | 5.1% |
+| **TLU + FEAT-v4 + MATCH-v6** | **12.7%** | 6.4% | 4.6% |
+
+  FEAT-v4 removes about a third of France's false links in the same setup, and does not raise the other countries. France is still about twice as high as India and the US. The smoke models learn from 1% of train, so the absolute rates are noisy.
+
+### dev_v3 — number-gap and support features on DEV-10
+
+- **Date:** 2026-09-25
+- **Setup:** `experiments/dev_v3.py` on the DEV-10 cache, same splits and folds as `dev_stack` (baselines: stage 1 0.9894 at threshold 0.725 and 0.9887 with expected F; stage 2 0.9904 / 0.9906).
+
+| Variant | Threshold rule | Expected F |
+|---|---:|---:|
+| Stage 1 + number gap (FEAT-v3) | 0.9907 (0.8) | 0.9903 |
+| Stage 2 + number gap | **0.9918** (0.725) | **0.9918** |
+| Stage 2 + number gap + support (MATCH-v3) | 0.9918 (0.65) | 0.9919 |
+
+- **Number gap:** +0.0013 at stage 1 and +0.0012 at stage 2 (singletons 0.9895 against 0.9935 before; others 0.9919 against 0.9902). `num_x_edit` ranks fifth by stage-1 gain. **Kept: FEAT-v3 and FEAT-v4 include it.**
+- **Support features:** +0.0001, within noise, at an extra cost of ~20 minutes of full-data features. **Dropped.**
+
+### Leaderboard gap — the test set has twice the distractors per S1
+
+- **Date:** 2026-09-25
+- **Trigger:** FULL-v1 scored **0.96 on the public leaderboard**, against 0.9813 on its eval slice. The top of the board is 0.99. Eval rows are scored exactly like test rows, so a 0.02 gap points to a difference between the train and test data, not to noise.
+- **Scripts:** `experiments/shift_check.py` (leak, stats, preds) and `experiments/full_errors.py`, run on the EC2 work dir.
+
+**1. No leak.** Over 7.64M train links, the Spearman correlation between the file row of an S1 record and the rows of its matches is +0.0010 (S2) and -0.0007 (S3). The numeric parts of the IDs give +0.0001 and +0.0002. The S2 and S3 rows of one entity give -0.0004. The top scores do not come from file order or ID numbers.
+
+**2. The data differs.**
+
+| Split | Country | S1 | Targets | Targets / S1 | S1 name shared | Target name = an S1 name | Target no address | Target no number |
+|---|---|---:|---:|---:|---:|---:|---:|---:|
+| train | India | 883,188 | 4,133,346 | 4.68 | 0.541 | 0.609 | 0.030 | 0.092 |
+| train | US | 1,323,633 | 6,186,873 | 4.67 | 0.477 | 0.526 | 0.036 | 0.091 |
+| test | France | 259,452 | 1,434,993 | 5.53 | 0.477 | 0.565 | 0.030 | 0.067 |
+| test | India | 809,986 | 4,717,565 | 5.82 | 0.534 | 0.543 | 0.024 | 0.075 |
+| test | US | 663,106 | 3,817,031 | 5.76 | 0.399 | 0.472 | 0.029 | 0.074 |
+
+**3. How many test targets are distractors?** In train, S2 and S3 hold almost exactly the same number of distractors (1,340,997 and 1,340,857), while the matched records split 3,693,619 : 3,944,746 (ratio 0.9363). The generator therefore seems to add the same number of distractors to each source. Assuming the same matched ratio in test, the S3 − S2 excess (195,043) gives the matched records, and the rest are distractors:
+
+| | Matches / S1 | Distractors / S1 | Distractor share of targets |
+|---|---:|---:|---:|
+| Train US / India | 3.52 / 3.37 | **1.15 / 1.31** | 25% / 28% |
+| Test US / India / France | 3.41 / 3.47 / 3.31 | **2.34 / 2.35 / 2.22** | 41% / 40% / 40% |
+
+The test entities have as many matches as the train ones, but **twice as many distractors per S1**. The US test even has the same absolute number of distractors as the US train (0.78M vs 0.76M per source) with half the S1 records. The lower rates of missing addresses and numbers in test fit this: solved the same way, distractors almost always carry a full address and a number (about 1% miss one) and are never web or alias names, while about 12% of matched records lack a number.
+
+**4. The model behaves the same on test.** Stage-2 profile per country, with eval rows on the full-train universe:
+
+| Split | Country | S1 linked | Links / S1 | Top p2 > 0.95 | Links with p2 < 0.8 | Targets with max p2 > 0.5 |
+|---|---|---:|---:|---:|---:|---:|
+| eval | India | 0.942 | 3.29 | 0.935 | 0.005 | 0.713 |
+| eval | US | 0.942 | 3.33 | 0.937 | 0.003 | 0.720 |
+| test | France | 0.941 | 3.18 | 0.930 | 0.011 | 0.593 |
+| test | India | 0.941 | 3.29 | 0.934 | 0.006 | 0.575 |
+| test | US | 0.941 | 3.31 | 0.934 | 0.006 | 0.587 |
+
+The model is just as confident and links as many records per S1 on test. The share of targets it claims falls with the matched share (~60%). So the extra test errors are *confident* ones, such as a lookalike taken instead of, or next to, the true record, and a stricter threshold cannot remove them. France is a little less certain than the other countries, but it does not collapse.
+
+**Analysis**
+- The eval slice never saw test-like conditions: the model learned its priors, and the competition features (`margin_vs_other_s1` and `rank_for_t` carry 82% of the stage-1 gain), at half the test's distractor density. In the US it also saw twice the test's S1 density.
+- A linear estimate (twice the distractor wrong links) explains only ~0.003 of the 0.02. The rest must come from lookalikes that the denser, rival-rich train universe hid: in train, a lookalike is often claimed by its own S1, which is missing in test.
+- **Fix, validation first:** a test-like train universe (`BLK-v4b@20-tlu40`). It keeps every eval S1 and 40% of the other train S1 entities, and removes the rest together with their true targets. That leaves ~2.3 distractors per S1, and a US S1 density close to the test's. Two runs use it:
+  1. `MATCH-v2-frozen` scores the leaderboard model in it. If it lands near 0.96, the universe reproduces the leaderboard, and its eval slice becomes the validation to trust.
+  2. `MATCH-v6` trains in it, so the model learns test-like priors and the rule is chosen under test-like conditions.
+
+### Error analysis — FULL-v1 on the full-data eval slice
+
+- **Date:** 2026-09-25
+- **Setup:** `experiments/full_errors.py`, stage 2, gated expected-F 0.5, 441,521 eval S1 (1,528,407 true links, 1,463,512 predicted).
+
+| Entity outcome | Entities | Loss (of 0.0187) |
+|---|---:|---:|
+| Some links missed, none wrong | 59,213 | **0.0109** |
+| Has matches, predicted nothing | 1,593 | 0.0036 |
+| Some links wrong, none missed | 4,030 | 0.0021 |
+| Singleton given a link | 556 | 0.0013 |
+| Missed and wrong links | 1,037 | 0.0007 |
+| Has matches, every prediction wrong | 25 | 0.0001 |
+
+| Missed links (70,681 = 4.62%) | Links | Share | Target without address |
+|---|---:|---:|---:|
+| Not chosen by the rule (own p2 mostly 0.05–0.8) | 26,773 | 37.9% | 32% |
+| Never a candidate | 25,676 | 36.3% | 29% |
+| Lost to another S1 under exclusivity | 18,232 | 25.8% | **91%** |
+
+- **Recall is the main loss** (0.0145 of 0.0187). Wrong links are 5,786, 85% of them distractors; 44% have p2 above 0.9.
+- **Not chosen:** true matches whose house number was replaced or perturbed (9052↔9053, 7732↔7730, 733↔831, 3785↔3559), a name word swapped for another (motors↔auto, medicine↔partners), or numbers dropped. Some clear matches still score low, e.g. identical address with a typo-heavy name (ficus vidyalaya ↔ ficus viddyalmaya, p2 0.32).
+- **Lost to another S1:** no-address targets whose name several S1 records share ("all insurance", "eye care", "micki hammond"). The winner has the same core name 77% of the time, and its own p2 averages only 0.26, so the target often goes to nobody. Mostly irreducible from the pair alone.
+- **Never a candidate:** initials or acronyms ("chorus vanijya" ↔ "cvprivate", "cosmos brothers" ↔ "bc"), invented names ("kundan multimedia" ↔ "nylaquo"), and plain typos that still rank below 20 lookalikes ("lakshmi international" ↔ "lksmi international", same address). Top-40 blocking recovers 0.61 points of links.
+- **Wrong links:** near-copies of the S1 record that belong to no S1: the same number with a unit letter ("3027 c douglas ave"), a nearby number plus a PMB, or a name variant at the same address.
 
 ### FULL-v1 matcher — M-v3 on the full data
 
