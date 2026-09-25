@@ -31,6 +31,7 @@ python run_pipeline.py --data <dataset_dir> --work <work_dir> --out <out_dir> \
 python run_pipeline.py --list                       # every registered version and preset
 python run_pipeline.py ... --preset M-v4            # another end-to-end version
 python run_pipeline.py ... --feat FEAT-v3 --stages features,train,predict   # swap one component
+python run_pipeline.py ... --match MATCH-v6 --stages train,predict   # new matcher on cached blocking/features
 python run_pipeline.py ... --sample 0.01            # end-to-end smoke run, ~1 min, ~6 GB RAM
 
 # DEV-10 experiments (cache dir holds dev_Q/dev_T/dev_pairs/dev_features_v2/dev_part/...)
@@ -42,7 +43,10 @@ python -m experiments.dev_v3 <cache>                                 # FEAT-v3 n
 
 Final package: copy the chosen run's TSVs from `s3://…/predictions/<version>/` into `output/`,
 then `python make_submission.py --team "<name>"` (repo root) validates them and writes
-`<team>_submission.zip` in the required layout.
+`<team>_submission.zip` in the required layout. The user wants the best complete run's TSVs kept in
+the local `output/` for leaderboard uploads: download them after every full run that beats the
+current best (presigned GET + curl), and check the md5 against the runner. `output/` now holds
+FULL-v1 (`predictions/M-v3/`, eval F0.5 0.9813).
 
 There is no test suite or linter. The format check is the official validator
 (`resources/student_resource/utils/validate_submission.py`, stdlib only); `run_pipeline.py`
@@ -77,7 +81,10 @@ One work dir = one data scope (`--sample/--seed/--fit/--es/--eval`); prep refuse
 3. **features** — `ber/features.py`: rapidfuzz similarities, house-number agreement, soft word
    alignment (Monge-Elkan / Jaro-Winkler with IDF), and **competition features** (rank of the
    candidate for its S1, rank of the S1 for the target, margin over the best *other* S1).
-   Context features need all candidates at once; the rest are computed in parts.
+   Context features need all candidates of a country at once; the rest are computed in parts of
+   4M rows. `ber/partition.py` runs the context features and stage 2's `probability_context` one
+   country at a time (blocking never pairs two countries, so no window crosses one): identical
+   values, lower peak memory — needed for deeper blocking (~200M train candidates at top-40).
 4. **train** — `ber/model.py`: LightGBM binary log loss (calibrated probabilities for the set
    decision). Stage 1 is cross-fitted; stage 2 adds `probability_context` (stage-1 probability
    of rival candidates / rival S1 records) and is cross-fitted too.
@@ -89,13 +96,21 @@ Validation design (in `stage_prep`): one seed-42 split of train S1 into fit 30% 
 eval 20% / rest 45%. Every entity stays in blocking so targets are contested as densely as at
 test time; aliases and region merges are learned without eval links; fit rows get out-of-fold
 predictions and all other rows (eval, rest, test) the mean of the fold models, so eval rows are
-scored exactly like test rows.
+scored exactly like test rows. The split draws one uniform number per entity (fit `u < 0.3`,
+early-stop `[0.3, 0.35)`, eval `u >= 0.8`), so the eval slice never depends on the fit share, and
+every full-data run is scored on the same 441,521 eval entities. MATCH-v6 (`fit_rest`) turns the
+rest entities into fit entities (75% of train S1 instead of 30%) without touching prep, blocking
+or features.
 
 Gotchas:
 - `probability_context` returns `p1` as its first column; appending `p1` again duplicates it.
 - `nums` lists come from `unique()` without order, so "first number" is not the house number.
 - DEV-10 (10% of S1, their matches, 10% of distractors) has ~10× less competition per region
   than full data: its scores are optimistic. Compare variants on DEV-10, report on full data.
+- `rid` is a dense row index per split (`with_row_index` in prep), so per-record lookups can use
+  plain arrays indexed by `q_rid` / `t_rid`.
+- A change that must not alter results (e.g. a memory refactor) needs an exact-equality check
+  against the old code path, including ordinal-rank ties and nulls.
 
 ## Results and decisions (DEV-10 eval slice, 44,137 S1)
 
@@ -129,13 +144,38 @@ address: 88.7% (the name-only pass keeps just 5). Recall by main-pass depth: top
 top-10 97.4%, top-20 98.3% and still rising. Blocking depth is therefore the biggest lever;
 BLK-v4b@40n20 measures both depth curves (`recall_at_k`, `noaddr_recall_at_k` in the block stage).
 
+**FULL-v1 matcher (M-v3 on full data; current best, the file in `output/`):** eval slice (441,521 S1)
+**F0.5 0.9813**, P 0.9952, R 0.9544, singletons 0.9774, others 0.9815; India 0.9778, US 0.9837.
+Chosen rule: stage 2, gated expected-F, gate 0.5. Expected-F (floor 0.4) scores the same to 6
+decimals, and the best threshold is only 0.0004 lower, so the rule no longer matters. A perfect
+matcher on these candidates would score 0.9947. **The matcher (-0.0134) now loses more than
+blocking (-0.0053).** 2.9% of true links are candidates but are not predicted (1.5% on DEV-10),
+so DEV-10 overstated F0.5 by 0.009. Test: 94.1% of S1 get a link in every country, France
+included (3.18 links/S1; eval truth 94.4%, 3.46). The validator passes.
+
+FULL-v1 cost on the EC2 runner (M-v3, 8 cores): prep 386 s, block 1,202 s (peak 44.4 GB during US
+blocking: 1.32M S1 x 6.19M targets), features 2,344 s (104.7M train + 83.3M test candidates, 47.5
+and 48.1 per S1). Stage-1 folds 638–718 s (1,277–1,469 trees at lr 0.05, 36.6M training rows,
+7.2% positive); stage-2 folds 255–330 s (444–573 trees). Scoring all 188M candidates with the
+stage-1 models took 2.4 h (with a second job competing for the CPU).
+
+Matcher versions after M-v3: MATCH-v4 (LightGBM prediction early stopping) is **experimental** —
+on tiny data it moved stage-1 probabilities by up to 0.31, so it is not a free speedup; MATCH-v5
+= learning rate 0.1 (about half the trees, same DEV score on tiny data); MATCH-v6 = MATCH-v5 +
+`fit_rest`. Next full-data decisions wait on: the BLK-v4b@40n20 depth curves (top-k for BLK-v5),
+`dev_v3` (keep FEAT-v3 number-gap and MATCH-v3 support features?), and MATCH-v6 vs FULL-v1 on
+the shared eval slice.
+
 ## AWS
 
 - **Account 125650147728, region us-east-1.** A teammate's notes describe a different account
   (911797456769); its bucket is not accessible from here.
 - **Auth:** `aws login` (short-lived credentials, root user; root has no access keys; enabling root
   MFA is recommended). Local boto3 needs `pip install "botocore[crt]"` for the login provider. In Claude Code,
-  use the aws-mcp tools (its `run_script` sandbox blocks the `base64` module).
+  use the aws-mcp tools (its `run_script` sandbox blocks the `base64` module). In `call_boto3`,
+  operation names are PascalCase (`SendCommand`, `GetCommandInvocation`); a script that runs
+  longer than ~1 minute turns into a task polled with `get_tasks`, so keep scripts short and never
+  sleep in them. Presigned URLs carry temporary credentials: never show them to the user.
 - **Budget:** `mlc26-monthly-50usd` ($50/month, email alerts at 50% and 100%).
 - **S3:** `s3://amazon-ml-challenge-26-sagemaker-125650147728`. The user wants it to hold **data and
   results only**: `dataset/` (the 7 TSVs), `experiments/` (logs, metrics), `predictions/<version>/`,
@@ -147,9 +187,11 @@ BLK-v4b@40n20 measures both depth curves (`recall_at_k`, `noaddr_recall_at_k` in
   shutdown configured). Execution role `AmazonSageMaker-ExecutionRole-20260925T163023` can read
   and write the bucket. An older, empty domain `d-d4wvkyftnhlu` exists in eu-north-1.
 - **Quotas (us-east-1):** approved — Studio user profiles 2, domains 2, running Studio apps 40.
-  Pending AWS review — training on ml.m5.4xlarge / ml.m5.xlarge / ml.g5.2xlarge, processing on
-  ml.g5.xlarge, Studio JupyterLab on ml.r5.4xlarge / ml.g5.xlarge. Every other training and
-  processing quota is 0; only ml.t3.medium Studio/notebook compute works. EC2 standard vCPU quota: 8.
+  Pending AWS review (still `CASE_OPENED` at 15:50 UTC on 2026-09-25, filed 07:05–07:35 UTC) —
+  training on ml.m5.4xlarge / ml.m5.xlarge / ml.g5.2xlarge, processing on ml.g5.xlarge, Studio
+  JupyterLab on ml.r5.4xlarge / ml.g5.xlarge. Every other training and processing quota is 0; only
+  ml.t3.medium Studio/notebook compute works. EC2 standard vCPU quota: 8. ml.m5.4xlarge has the
+  same 64 GB as the EC2 runner, so a run that fits one fits the other.
 - **SageMaker training path (ready, blocked on quota):** `infra/aws/sagemaker/launch_training_job.py`
   packages `src/` + pinned requirements + validator and runs `src/sagemaker_entry.py` on
   `pytorch-training:2.7.1-cpu-py312-ubuntu22.04-sagemaker`; working files in `/tmp`, outputs in
@@ -171,9 +213,31 @@ BLK-v4b@40n20 measures both depth curves (`recall_at_k`, `noaddr_recall_at_k` in
   URLs are long: write them to a file before calling curl (a multi-URL command got truncated).
 - AWS runbook (resources, compute options, costs, credentials): `infra/aws/README.md`; quota
   requests: `infra/aws/request_quotas.py --status / --apply`.
+- **Runner job queue (2026-09-25; each chain waits for the previous marker in `logs/`):**
+  chain2 = FULL-v1 (M-v3, code `pipe/`) → uploads `predictions/full/`, `models/full/`, touches
+  `FULL_DONE` (**done** 15:56 UTC, 4 h 46 min). chain5 (`pipe3/`) = `migrate_v1.py` (moves FULL-v1
+  into the version-keyed layout), then a predict re-run of M-v3 with the gated rule → `predictions/M-v3/`
+  (**done** 15:58), then the BLK-v4b@40n20 block stage for the depth curves (running since 15:59)
+  → `CHAIN5_DONE`. chain6 (`pipe2/`) = `dev_v3` on DEV-10 (`/opt/mlc26/dev10`) → `CHAIN6_DONE`.
+  chain7 (`pipe4/`) = 1% smoke test of the new code (`logs/smoke4.log`), then MATCH-v6 train+predict
+  on the cached FULL-v1 features (`logs/full_v6.log`) → `predictions/NORM-v2__BLK-v4b@20__FEAT-v2__MATCH-v6/` →
+  `CHAIN7_DONE`. Launch chains detached, e.g. `setsid nohup ./chainN.sh > logs/chainN.out 2>&1 < /dev/null &`.
+  chain7 was first started as `cd … && nohup ./chain7.sh > … &`. The backgrounded subshell kept the
+  command's output pipe open, so the SSM command stayed InProgress, and SSM would have killed the
+  chain at the command's 1-hour timeout. It was relaunched with `setsid` at 15:58 (PID 60518, parent 1).
+  Logs sync to `experiments/logs/`. After the chains, delete `models/full/scores_*.parquet` from S3
+  (multi-GB; the instance role cannot delete by design).
 - **Console links** (the user wants these in every report that touches S3 or SageMaker):
   - Bucket: https://us-east-1.console.aws.amazon.com/s3/buckets/amazon-ml-challenge-26-sagemaker-125650147728?region=us-east-1&tab=objects
     (append `&prefix=predictions/full/` etc. for a folder)
   - SageMaker domain: https://us-east-1.console.aws.amazon.com/sagemaker/home?region=us-east-1#/studio/d-tgxrzl4mojbh
   - Training jobs: https://us-east-1.console.aws.amazon.com/sagemaker/home?region=us-east-1#/jobs (one job: `#/jobs/<name>`)
   - EC2 runner: https://us-east-1.console.aws.amazon.com/ec2/home?region=us-east-1#InstanceDetails:instanceId=i-033e809bc1d8c21b5
+
+## Git
+
+- Branch `sumukh/full-pipeline-aws` on a **public** GitHub repo. Commits are authored by the user
+  (9SERG4NT) only: no AI co-author or attribution lines in commit messages or PR descriptions.
+- `output/candidate_pairs.tsv` is ignored (about 1 GB, over GitHub's 100 MB limit; it lives in
+  S3). `output/matching_results.tsv` is not ignored (the user's original rule), but it is a test-set
+  prediction: ask before committing it to the public repo.

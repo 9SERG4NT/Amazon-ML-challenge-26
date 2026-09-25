@@ -95,6 +95,7 @@ Unless noted, the scores are on the DEV-10 **evaluation slice**: 20% of the DEV-
 | M-v1 | 2026-09-25 | NORM-v2 + BLK-v4b (top-20 per source) + 44 features + LightGBM (log loss) + exclusive assignment + threshold 0.725 | 99.45% | 46.9 | 0.9882 | 0.9954 | 0.9745 | 0.9805 / 0.9887 | — | Upper bound with a perfect matcher on these candidates: 0.9984. Laptop, DEV-10 |
 | M-v2 | 2026-09-25 | M-v1 + 8 soft word-alignment features (52 in total); exclusive, threshold 0.725 | 99.45% | 46.9 | 0.9894 | 0.9959 | 0.9772 | 0.9826 / 0.9899 | — | Scored on EC2 from the saved M-v2 predictions |
 | M-v3 | 2026-09-25 | 2 stages: stage 1 cross-fitted (3 folds) + stage 2 on stage-1 probability context; exclusive, expected-F | 99.45% | 46.9 | **0.9906** | 0.9963 | 0.9794 | 0.9814 / 0.9911 | — | Threshold 0.725 instead: 0.9904 (singletons 0.9935). EC2, DEV-10 |
+| **FULL-v1** (M-v3) | 2026-09-25 | M-v3 on the **full** data: fit 30% of train S1, scored on the full-density eval slice (441,521 S1); exclusive, gated expected-F (gate 0.5) | 98.32% | 47.5 | **0.9813** | 0.9952 | 0.9544 | 0.9774 / 0.9815 | pending | Perfect matcher on these candidates: 0.9947. India 0.9778, US 0.9837. Test output in `output/` and `predictions/M-v3/` |
 
 ---
 
@@ -136,6 +137,47 @@ Copy the template below for each run, newest entry first. Record every run, incl
 - Conclusion: keep / drop / iterate
 - Next step:
 -->
+
+### FULL-v1 matcher — M-v3 on the full data
+
+- **Date:** 2026-09-25
+- **Git commit:** `9b5c959`. The runner bundles were packed from the working tree shortly before that commit: `pipe/` for training, and `pipe3/` for the predict re-run with the gated rule.
+- **Hypothesis:** DEV-10 has about 10 times less competition per region than the full data, so its 0.9906 is optimistic. Training and scoring on the full data, with the eval slice contested as densely as the test set, gives the score to expect on the leaderboard.
+
+**Methodology**
+- Preprocessing, blocking and features: NORM-v2, BLK-v4b@20 (see the FULL-v1 blocking entry below), FEAT-v2 (52 features).
+- Model: MATCH-v2. Stage 1 and stage 2 are both cross-fitted over 3 folds of the fit entities (30% of train S1), early-stopped on 5%. Training rows (fit + early stop): 36,648,850, 7.17% positive. LightGBM, learning rate 0.05, 255 leaves.
+- Stage 2 has 64 features: the 52 of stage 1, plus `p1` and its 11 context columns.
+- Decision: exclusive assignment, then the rule and its parameter chosen on the eval slice among threshold (0.20–0.95), expected F (floors 0.05–0.4) and gated expected F (gates 0.30–0.95).
+
+**Results (eval slice, 441,521 S1; 20% of train S1, never fitted)**
+
+| Score / rule | F0.5 | P | R | Singletons | Others |
+|---|---:|---:|---:|---:|---:|
+| Perfect matcher on these candidates | 0.9947 | 1.0000 | 0.9833 | 1.0000 | 0.9944 |
+| Stage 1, threshold 0.725 | 0.9791 | 0.9947 | 0.9494 | 0.9756 | 0.9793 |
+| Stage 1, gated expected F (gate 0.7) | 0.9793 | 0.9948 | 0.9492 | 0.9737 | 0.9796 |
+| Stage 2, threshold 0.65 | 0.9809 | 0.9945 | 0.9564 | 0.9848 | — |
+| Stage 2, expected F (floor 0.4) | 0.9813 | 0.9951 | 0.9544 | 0.9759 | 0.9816 |
+| **Stage 2, gated expected F (gate 0.5): chosen** | **0.9813** | 0.9952 | 0.9544 | 0.9774 | 0.9815 |
+
+| Country | Eval S1 | F0.5 | P | R | Singletons | Others |
+|---|---:|---:|---:|---:|---:|---:|
+| India | 176,610 | 0.9778 | 0.9942 | 0.9463 | 0.9743 | 0.9780 |
+| US | 264,911 | 0.9837 | 0.9958 | 0.9597 | 0.9795 | 0.9839 |
+
+- **Best iterations:** stage 1 1,392 / 1,277 / 1,469; stage 2 573 / 444 / 454.
+- **Top stage-1 features by gain:** `margin_vs_other_s1` 55%, `rank_for_t` 27%, `num_jacc` 3.8%, then `al_b_worst`, `n_tsort`, `al_b_unaligned_idf`, `num_b_in_a`. **Stage 2:** `p1` 71%, `p1_margin_t` 23%, `p1_rank_t` 3.5%.
+- **Test set:** 5,683,607 links for 1,630,378 of 1,732,544 S1 (5.9% empty). The share of S1 with a link is 0.941 in every country, **France included** (3.18 links per S1; India 3.29, US 3.31). The eval truth has 0.944 and 3.46. The official validator passes.
+- **Runtime (EC2 r7a.2xlarge, 8 cores):** 4 h 46 min wall clock, peak 44.4 GB. Prep 386 s, block 1,202 s, features 2,344 s, train 13,137 s, predict 90 s. Training includes 2.4 h of stage-1 scoring, slowed by a second job that competed for the CPU.
+- **Output:** `predictions/M-v3/` in S3 and the repo's `output/` (md5 of `matching_results.tsv`: `b4644450c78b5bf64f8124223223a005`). The first predict, with expected F at floor 0.4, is kept in `predictions/full/`; it scores the same to 6 decimals.
+
+**Analysis**
+- **Full data costs 0.009 against DEV-10** (0.9906 → 0.9813), almost all of it in recall (0.9794 → 0.9544). Precision barely moves (0.9963 → 0.9952).
+- **The matcher now loses more than blocking does.** Blocking caps the score at 0.9947 (a loss of 0.0053), and the matcher loses a further 0.0134. 2.9% of the true links are among the candidates but are not predicted; on DEV-10 that figure was 1.5%. Denser competition hurts twice: a target has more rival S1 records that claim it, and each S1 record has more lookalike candidates.
+- The decision rule hardly matters any more. The best threshold, expected-F and gated rules are within 0.0004 of each other. The gains have to come from better probabilities.
+- France gets the same prediction profile as India and the US, so the pipeline does not collapse on the unseen country, but its score cannot be measured.
+- **Next:** MATCH-v6 (fit on 75% of train S1 instead of 30%, on the cached features), the BLK-v4b@40n20 depth curves (for deeper blocking in BLK-v5), and an error analysis of the full-data eval misses.
 
 ### FULL-v1 blocking — BLK-v4b@20 on the full data
 
