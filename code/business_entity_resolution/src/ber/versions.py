@@ -107,6 +107,10 @@ BLOCK = _index(
                               "distractors per S1 (train: 1.2) and half the US S1 density, and the leaderboard "
                               "(0.96) disagreed with the full-universe eval slice (0.9813)",
           keep_nonevals=0.4),
+    Block("BLK-v4b@40-tlu40", "BLK-v4b@20-tlu40 with a top-40 main pass (name-only pass stays at 5): in the full "
+                              "train universe a top-40 main pass with a top-5 name-only pass finds 98.82% of eval "
+                              "links against 98.32% for BLK-v4b@20, at ~90 instead of 47.5 candidates per S1; a "
+                              "deeper name-only pass adds only 0.11 points", k=40, keep_nonevals=0.4),
 )
 
 FEAT = _index(
@@ -150,6 +154,9 @@ PRESETS = {
     "M-v2": ("NORM-v2", "BLK-v4b@20", "FEAT-v2", "MATCH-v1"),
     "M-v3": ("NORM-v2", "BLK-v4b@20", "FEAT-v2", "MATCH-v2"),
     "M-v4": ("NORM-v2", "BLK-v4b@20", "FEAT-v3", "MATCH-v3"),
+    # trained and validated in the test-like universe (the leaderboard disagreed with the full-train one)
+    "M-v5": ("NORM-v2", "BLK-v4b@20-tlu40", "FEAT-v3", "MATCH-v6"),
+    "M-v6": ("NORM-v2", "BLK-v4b@20-tlu40", "FEAT-v4", "MATCH-v6"),
 }
 DEFAULT_PRESET = "M-v3"
 
