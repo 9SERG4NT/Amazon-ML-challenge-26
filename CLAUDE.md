@@ -53,6 +53,13 @@ then `python make_submission.py --team "<name>"` (repo root) validates them and 
 the local `output/` for leaderboard uploads: download them after every full run that beats the
 current best (presigned GET + curl), and check the md5 against the runner. `output/` now holds
 FULL-v1 (`predictions/M-v3/`, eval F0.5 0.9813, **public leaderboard 0.96**; top of the board 0.99).
+Output naming: `output/matching_results.tsv` and `output/candidate_pairs.tsv` are the current submission
+(exact names required). Every complete run also goes to `output/runs/<version key>/`, named like
+`predictions/<version key>/` in S3, and `output/README.md` is the manifest: run name, version key,
+eval F0.5, leaderboard score, md5. Update it with every run. FULL-v1 is also copied to
+`predictions/NORM-v2__BLK-v4b@20__FEAT-v2__MATCH-v2/`. The older prefixes `predictions/M-v3/`
+(identical) and `predictions/full/` (expected-F 0.4 rule, same score) still exist: ask the user
+before deleting them.
 The user has 1–2 leaderboard submissions a day: use them for milestone models, never to tune on the
 public subset.
 
