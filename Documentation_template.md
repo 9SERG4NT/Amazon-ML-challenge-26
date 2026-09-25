@@ -10,11 +10,19 @@
 
 We match records in three stages: an IDF-weighted sparse search generates candidates, a
 two-stage LightGBM classifier scores each (Source 1, candidate) pair, and a per-entity decision
-turns probabilities into the match list that maximises macro F0.5. Two ideas carry most of the
-accuracy: **competition features** — every Source 2/3 record belongs to at most one Source 1
-entity, so a candidate is judged against the rival Source 1 records that want the same record —
-and a **validation protocol that keeps the full competition density**, which showed that a 10%
-development sample overstates blocking recall by more than a point.
+turns probabilities into the match list that maximises macro F0.5. Three ideas carry most of the
+accuracy:
+
+- **Competition features.** Every Source 2/3 record belongs to at most one Source 1 entity, so a
+  candidate is judged against the rival Source 1 records that want the same record.
+- **A validation set built to look like the test set.** The test set has about twice as many
+  distractor records per Source 1 entity as the training set. We found this from the per-source
+  record counts after our first leaderboard score (0.96) fell short of our held-out score
+  (0.9813). We therefore train, tune and validate in a *test-like universe* made from the training
+  data.
+- **Country-agnostic features for the unseen country.** French names are often "<city> <generic
+  word> <legal form>". Similarity is therefore also measured on the distinctive part of each name
+  and address, after removing the tokens that are frequent in that country's own records.
 
 ---
 
@@ -37,16 +45,30 @@ Measured on the training files (2.2M Source 1, 5.0M Source 2, 5.3M Source 3 reco
   trade names ("Korevo" for "Asahi Charitable Trust"), Devanagari names in 7–13% and addresses in
   ~13% of Indian Source 2/3 records, house-number perturbations, and missing addresses (~3%).
 - **Country** never differs between linked records. Test adds France, absent from training.
+- **Train and test differ.** No leak: the file row order and the numeric part of the IDs are
+  uncorrelated with the ground truth (Spearman |ρ| ≤ 0.001 over 7.6M links). In training,
+  Source 2 and Source 3 hold almost exactly the same number of distractors (1,340,997 vs
+  1,340,857), while matched records split 0.936 : 1. Applying that to the test files, test entities
+  have as many matches as training ones (3.3–3.5), but **2.2–2.35 distractors per Source 1 entity
+  against 1.15–1.31 in training**, about 40% of test records against 26%. The US test set also has
+  half the training set's Source 1 density. Distractors are "clean" records: full address and
+  house number, never website or alias names.
+- **France:** French Source 1 names are often a city plus a generic word plus a legal form
+  ("Nantes Maison SARL", "Lille Amis SCI"). The test covers only a few cities, so many unrelated
+  businesses share such a name, and multi-word place names ("La Teste-de-Buch",
+  "Nouvelle-Aquitaine") inflate address similarity. French addresses carry no postal codes.
 
 ### 2.2 Solution Strategy
 
 **Approach Type:** Blocking + two-stage classifier + per-entity set decision  
 **Core Innovation:** competition-aware scoring (rank and probability margin against rival Source 1
-records, then exclusive assignment) and full-density validation.
+records, then exclusive assignment), a test-like validation and training universe, and
+distinctive-part similarity for an unseen country.
 
-Every component is a named version (normalisation NORM, blocking BLK, features FEAT, matcher
-MATCH) recorded in `src/ber/versions.py`; the submitted run is preset **[pending: M-v3 or
-later]**.
+Every component is a named version recorded in `src/ber/versions.py`: normalisation (NORM),
+blocking (BLK), features (FEAT) and matcher (MATCH). Every stage caches its output under the
+versions it depends on, so any logged result can be re-run by name. The submitted run is
+**[pending: NORM-v2 + BLK-v4b@20-tlu40 + FEAT-v3 or FEAT-v4 + MATCH-v6]**.
 
 ---
 
@@ -70,12 +92,16 @@ later]**.
   searched whole.
 - **Name-only pass** for targets without an address, which would otherwise lose to same-name
   records that have one.
-- **Candidate pairs generated:** 83.3M for the test set (48.1 per Source 1 record) with
-  BLK-v4b@20 **[pending: final BLK version]**.
-- **How we ensured true matches were not lost:** recall is measured on held-out training entities
-  at full density: 98.32% of true links with BLK-v4b@20 (88.7% for targets without an address,
-  98.8% for the rest). Recall-versus-depth curves for both passes decide the cut-offs
-  **[pending: BLK-v5 measurement]**.
+- **Candidate pairs generated:** 83.3M for the test set (48.1 per Source 1 record) with the
+  submitted BLK-v4b@20: top 20 per Source 1 record and target source, plus the top 5 targets
+  without an address.
+- **How we ensured true matches were not lost:** recall is measured on held-out training entities.
+  - With every training entity in the search, BLK-v4b@20 finds 98.32% of the true links: 88.7% for
+    targets without an address, 98.8% for the rest.
+  - In the test-like universe it finds 98.69%, because each region holds fewer rival records.
+  - A depth measurement (top 40 in the main pass, top 20 in the name-only pass) gives 95.99 /
+    97.40 / 98.28 / 98.70 / 98.93% at main-pass depths 5 / 10 / 20 / 30 / 40.
+  - The name-only pass adds only 0.11 points between depth 5 and 20, so it stays at 5.
 
 ---
 
@@ -89,6 +115,22 @@ later]**.
   among them — separating typos from a different business).
 - **Address features:** ratio, token-set, token-sort and partial ratios; token containment;
   house-number agreement (Jaccard, share of target numbers present, truncated-number match).
+- **Number-gap features (FEAT-v3):** for the closest pair of house numbers found on one side
+  only, the digit edit distance, the log numeric gap and the relative gap. Planted distractors sit
+  at a nearby number (831 vs 835), while true matches carry digit typos (9052 vs 9053) and
+  replaced numbers. On the development sample these three features lift stage 2 from 0.9904 to
+  0.9918.
+- **Distinctive-part features (FEAT-v4):**
+  - The frequent tokens of a country are those in more than 1% of its records, learned from that
+    country's own records: cities, regions, street types, legal forms, generic words. France
+    therefore gets them without any labels.
+  - Name and address similarity is also computed with those tokens removed: ratio, token-set,
+    containment, and the number of tokens left.
+  - Two counts are added: how many target records share the Source 1 core name, and how many share
+    the target's.
+  - The model learns from generic US and Indian names ("Primary Care Group") that a matching generic
+    name is weak evidence. In a sample where almost no true pair survives, these features cut the
+    share of French Source 1 records given a (false) link from 20.0% to 12.7%.
 - **Competition and context features:** blocking score and name/address cosines; rank of the
   candidate within its Source 1 record (per source and overall); gap to the best candidate;
   number of candidates; **number of Source 1 records that retrieved the target, this record's rank
@@ -96,49 +138,83 @@ later]**.
 - **Stage 2** adds the stage-1 probability and its context: rank among the record's candidates and
   among the target's Source 1 records, best rival probability and the margins over it.
 
-**Model type:** LightGBM (MIT), binary log loss, 255 leaves, learning rate 0.05, early stopping.
-Stage 1 and stage 2 are both **cross-fitted** over 3 folds of the fit entities, so every
-probability used downstream is out-of-sample.
+**Model type:** LightGBM (MIT), binary log loss, 255 leaves, early stopping. The submitted
+matcher (MATCH-v6) uses learning rate 0.1 and fits 75% of the training entities (the first run:
+0.05 and 30%). Stage 1 and stage 2 are both **cross-fitted** over 3 folds of the fit entities,
+so every probability used downstream is out-of-sample.
 
 **Threshold selection method:** each target is kept only for the Source 1 entity that scores it
 highest (exclusive assignment); then a rule chosen on held-out training entities by macro F0.5:
 a single threshold, expected-F (per entity, the top-k maximising expected F0.5 under the
 predicted probabilities, or no match), or gated expected-F.
 
-**Validation:** Source 1 training entities are split once — fit 30%, early stopping 5%,
-evaluation 20% (441,521 entities), rest 45%. All entities stay in the candidate search, aliases
-and region merges are learned without evaluation links, and evaluation rows are scored exactly
-like test rows.
+**Validation:** Source 1 training entities are split once: fit 30%, early stopping 5%,
+evaluation 20% (441,521 entities), rest 45%. Aliases and region merges are learned without the
+evaluation links, and evaluation rows are scored exactly like test rows.
+
+- **The full-train universe was not enough.** Our first full run scored 0.9813 there but 0.96 on
+  the public leaderboard: with every training entity in the search, each Source 1 entity faces
+  half the test's distractor density.
+- **The test-like universe (BLK-v4b@20-tlu40)** keeps every evaluation entity and 40% of the
+  other training entities, and removes the rest together with their true matches, while every
+  distractor stays.
+- **The result matches the test profile:** 5.80 targets and 2.34 distractors per Source 1 entity
+  in both countries, against 5.76–5.82 and 2.34–2.35 in the test set.
+- **Everything happens in this universe:** blocking, features, training and the choice of
+  decision rule. The evaluation slice remains the same 441,521 entities. The earlier model is
+  also scored there without retraining, to check that the universe reproduces its leaderboard
+  score.
 
 ---
 
 ## 5. Results & Error Analysis
 
-- **F_0.5 Score (macro):** **[pending: full-data evaluation slice]**. Development sample (10%,
-  44,137 entities): 0.9906 (precision 0.9963, recall 0.9794) with stage 2 and expected-F,
-  against 0.9882 for the first single-stage model.
-- **Common false positives (wrong merges):** the same business name at a *nearby* house number
-  (831 vs 835 Winsor Pl; 3-4-114/12 vs /13) — planted distractors that differ from true matches
-  only in the number; names that differ in one distinctive word.
-- **Common false negatives (missed matches):** records without an address (about half of the
-  recoverable misses on the development sample: with only a name, a same-name Source 1 entity
-  often claims the record); invented trade names that match only through the address; blocking
-  misses in dense regions.
+- **F_0.5 Score (macro):** **[pending: test-like evaluation slice and leaderboard of the submitted
+  run]**. For reference:
+  - The first full run (M-v3, full-train universe) scored 0.9813 on the evaluation slice
+    (precision 0.9952, recall 0.9544; India 0.9778, US 0.9837) and 0.96 on the public
+    leaderboard. A perfect matcher on its candidates would score 0.9947.
+  - On the development sample (10%, 44,137 entities), stage 2 with expected-F scored 0.9906.
+- **Where the first full run lost F0.5 (0.0187 in total):** 0.0145 is recall.
+  - Of the 4.6% of true links it missed, 38% were candidates that the decision rule did not
+    choose. These are mostly true matches whose house number was replaced or perturbed, or whose
+    name had one word swapped ("motors" / "auto").
+  - 36% were never candidates: initials or acronym names ("chorus vanijya" / "cvprivate"),
+    invented names, typo-heavy names.
+  - 26% were taken by another Source 1 entity. 91% of these are targets without an address whose
+    name several Source 1 entities share, which is mostly irreducible.
+- **Common false positives (wrong merges):** 85% are distractors that look like a copy of the
+  Source 1 record: the same name at a nearby number, the same number with a unit letter
+  ("3027 c douglas ave"), or a name variant at the same address. In France, the same generic
+  name on a different street.
+- **Common false negatives (missed matches):** as above. Records without an address, perturbed
+  house numbers, and invented or acronym names.
 
-| Version (development sample) | F0.5 | Precision | Recall |
-|---|---:|---:|---:|
-| Single model, 44 features | 0.9882 | 0.9954 | 0.9745 |
-| + soft word alignment (52) | 0.9894 | 0.9959 | 0.9772 |
-| + stage 2, expected-F | 0.9906 | 0.9963 | 0.9794 |
+| Version | Data | F0.5 | Precision | Recall |
+|---|---|---:|---:|---:|
+| Single model, 44 features | development sample | 0.9882 | 0.9954 | 0.9745 |
+| + soft word alignment (52) | development sample | 0.9894 | 0.9959 | 0.9772 |
+| + stage 2, expected-F | development sample | 0.9906 | 0.9963 | 0.9794 |
+| + number-gap features (55) | development sample | 0.9918 | 0.9975 | 0.9810 |
+| M-v3, full-train universe | full data, evaluation slice | 0.9813 | 0.9952 | 0.9544 |
+| M-v3 | public leaderboard | 0.96 | | |
+| **[pending: submitted run]** | test-like evaluation slice / leaderboard | | | |
 
 ---
 
 ## 6. Conclusion
 
-Treating the problem as competition for records — rather than independent pair classification —
-and validating at the real competition density were the decisive choices. The main lesson: a
-convenient 10% sample hid a 1.1-point blocking-recall loss that only full-density validation
-exposed. **[pending: final score and what the deeper blocking recovered]**
+Treating the problem as competition for records, rather than as independent pair
+classification, and validating under test conditions were the decisive choices. Validation had
+to be fixed twice:
+
+- A convenient 10% sample hid a 1.1-point blocking-recall loss that only full-density validation
+  exposed.
+- Full-density validation still missed that the test set has twice the distractors per entity.
+  The per-source record counts revealed it, and a test-like universe built from the training data
+  corrected it.
+
+**[pending: final score]**
 
 ---
 
@@ -149,13 +225,15 @@ exposed. **[pending: final score and what the deeper blocking recovered]**
 `code/business_entity_resolution/`: `src/run_pipeline.py` runs every stage (prep → block →
 features → train → predict) and writes `output/matching_results.tsv` and
 `output/candidate_pairs.tsv`, then runs the official validator. `src/ber/` holds the components
-(`normalize`, `aliases`, `blocking`, `features`, `model`, `metrics`, `versions`); `src/experiments/`
-holds the development-sample experiments behind each version. `README.md` gives the exact command
-and `requirements.txt` the pinned environment (Python 3.12).
+(`normalize`, `aliases`, `blocking`, `features`, `model`, `metrics`, `partition`, `versions`).
+`src/experiments/` holds the experiments behind each version: development-sample studies, the
+full-data error analysis (`full_errors.py`) and the train/test shift checks (`shift_check.py`).
+`README.md` gives the exact command and `requirements.txt` the pinned environment (Python 3.12).
 
 ### B. Additional Results
 
-Full experiment log with every version: `method_result.md`. **[pending: full-data tables]**
+Full experiment log with every version, including the full-data tables, the shift analysis and
+the France study: `method_result.md`.
 
 ---
 
