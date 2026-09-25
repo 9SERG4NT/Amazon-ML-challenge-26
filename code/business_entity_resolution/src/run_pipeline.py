@@ -351,6 +351,8 @@ def stage_train(a, rv: V.RunVersions, P: Paths) -> dict:
     mv = rv.match
     P.run.mkdir(parents=True, exist_ok=True)
     role = pl.read_parquet(P.prep / "split.parquet")["role"].to_numpy()
+    if mv.fit_rest:  # rest entities become fit entities: cross-fitted, out-of-fold predictions
+        role = np.where(role == REST, FIT, role).astype(np.int8)
     fold = np.random.default_rng(a.seed + 1).integers(0, mv.folds, len(role)).astype(np.int8)
     pairs = pl.read_parquet(P.prep / "pairs.parquet")
     tr_parts, te_parts = _parts(P, "train"), _parts(P, "test")

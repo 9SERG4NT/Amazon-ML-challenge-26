@@ -63,6 +63,7 @@ class Match:
     rules: tuple = ("threshold", "expected_f", "gated_ef")  # decision rules tried on the eval slice
     lgb: tuple = ()                 # (name, value) overrides of model.DEFAULT_PARAMS
     pred_margin: float | None = None  # stop summing trees once 2*|raw score| exceeds this (LightGBM pred_early_stop)
+    fit_rest: bool = False          # also fit the "rest" entities (75% of train S1 instead of 30%; eval unchanged)
 
     def lgb_params(self) -> dict:
         return dict(self.lgb)
@@ -118,6 +119,10 @@ MATCH = _index(
     Match("MATCH-v5", "MATCH-v2 with learning rate 0.1 instead of 0.05: about half the trees (MATCH-v2 grew "
                       "~1,400 on full data), so training and scoring take about half the time",
           lgb=(("learning_rate", 0.1),)),
+    Match("MATCH-v6", "MATCH-v5 fitted on the rest entities too: 75% of the train S1 entities (fit 30% + rest 45%) "
+                      "instead of 30%, cross-fitted like the fit entities. Eval and early-stop entities are unchanged "
+                      "(the split draws them independently of the fit share), so it reuses the cached features",
+          lgb=(("learning_rate", 0.1),), fit_rest=True),
 )
 
 PRESETS = {
