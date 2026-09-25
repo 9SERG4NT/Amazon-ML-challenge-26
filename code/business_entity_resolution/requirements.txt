@@ -1,0 +1,2 @@
+# Pin exact versions of all dependencies here, e.g.
+# pandas==2.2.2

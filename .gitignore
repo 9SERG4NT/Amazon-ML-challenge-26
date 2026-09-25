@@ -1,0 +1,15 @@
+# Challenge dataset (files exceed GitHub's 100 MB limit)
+resources/student_resource/dataset/
+*.tsv
+!output/*.tsv
+
+# macOS junk
+__MACOSX/
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.ipynb_checkpoints/
