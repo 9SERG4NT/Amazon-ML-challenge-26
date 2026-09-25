@@ -43,6 +43,7 @@ from ber.data import dev_sample, load_split, load_truth
 from ber.features import align_features, context_features, name_idf, string_features, support_features
 from ber.metrics import macro_f05
 from ber.normalize import normalize, token_frames
+from ber.partition import country_codes
 
 FIT, ES, EVAL, REST = 0, 1, 2, 3
 ROLE_NAMES = {FIT: "fit", ES: "early_stop", EVAL: "eval", REST: "rest"}
@@ -335,14 +336,15 @@ def _importance(models, top: int = 15) -> list:
     return [(names[i], round(float(gain[i] / gain.sum()), 4)) for i in order]
 
 
-def _stage2_extra(C: pl.DataFrame, p1: np.ndarray, T: pl.DataFrame | None) -> tuple[np.ndarray, list[str]]:
+def _stage2_extra(C: pl.DataFrame, p1: np.ndarray, T: pl.DataFrame | None,
+                  part: np.ndarray) -> tuple[np.ndarray, list[str]]:
     """Stage-2 inputs beyond the stage-1 features: p1 and its context, and optionally support features."""
     S = C.with_columns(pl.Series("p1", p1))
-    blocks = [M.probability_context(S)]  # p1 + its context columns
+    blocks = [M.probability_context(S, part)]  # p1 + its context columns
     if T is not None:
         blocks.append(support_features(S, T))
     frame = pl.concat(blocks, how="horizontal")
-    return frame.to_numpy().astype(np.float32), frame.columns
+    return frame.to_numpy().astype(np.float32, copy=False), frame.columns  # all columns are Float32 already
 
 
 def stage_train(a, rv: V.RunVersions, P: Paths) -> dict:
@@ -372,14 +374,16 @@ def stage_train(a, rv: V.RunVersions, P: Paths) -> dict:
     if mv.stages == 2:
         text = lambda split: (pl.read_parquet(P.prep / f"T_{split}.parquet", columns=["rid", "name_core", "name_nosp", "addr_n"])
                               if mv.support else None)
-        extra_tr, extra_cols = _stage2_extra(C_tr, p1_tr, text("train"))
+        part = lambda C, split: country_codes(C["q_rid"].to_numpy(),
+                                              pl.read_parquet(P.prep / f"Q_{split}.parquet", columns=["rid", "country"]))
+        extra_tr, extra_cols = _stage2_extra(C_tr, p1_tr, text("train"), part(C_tr, "train"))
         cols2 = cols + extra_cols
         X2, _, _, _ = _load_rows(tr_parts, keep, cols, pairs, extra=extra_tr)  # same rows, same order as X
         s2 = _cross_fit(X2, y, q, role, fold, cols2, mv, "stage2", P)
         del X2
         scores_tr = scores_tr.with_columns(pl.Series("p2", _predict_parts(s2, tr_parts, cols, role, fold, extra=extra_tr, margin=mv.pred_margin)))
         del extra_tr
-        extra_te, _ = _stage2_extra(C_te, p1_te, text("test"))  # built only now, to keep the peak down
+        extra_te, _ = _stage2_extra(C_te, p1_te, text("test"), part(C_te, "test"))  # built only now, to keep the peak down
         scores_te = scores_te.with_columns(pl.Series("p2", _predict_parts(s2, te_parts, cols, extra=extra_te, margin=mv.pred_margin)))
         del extra_te
         log("stage 2 predicted train (out-of-fold) and test")

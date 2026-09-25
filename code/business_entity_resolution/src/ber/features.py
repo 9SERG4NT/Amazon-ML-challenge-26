@@ -15,6 +15,8 @@ import polars as pl
 from rapidfuzz import fuzz, process
 from rapidfuzz.distance import JaroWinkler, Levenshtein
 
+from .partition import by_partition, country_codes
+
 Q_COLS = ["name_n", "name_core", "name_nosp", "addr_n", "nums"]
 T_COLS = ["name_n", "name_core", "name_nosp", "name_alt", "name_pre", "addr_n", "nums",
           "has_addr", "is_web", "has_alias", "non_ascii"]
@@ -234,8 +236,12 @@ def align_features(cand: pl.DataFrame, Q: pl.DataFrame, T: pl.DataFrame, idf: pl
 
 
 def context_features(cand: pl.DataFrame, Q: pl.DataFrame, T: pl.DataFrame) -> pl.DataFrame:
-    """Rank/competition features from the blocking scores (row order preserved)."""
-    c = cand.select("q_rid", "t_rid", "src", "bscore")
+    """Rank/competition features from the blocking scores (row order preserved), one country at a time."""
+    part = country_codes(cand["q_rid"].to_numpy(), Q)
+    return by_partition(cand.select("q_rid", "t_rid", "src", "bscore"), part, lambda c: _context_features(c, Q, T))
+
+
+def _context_features(c: pl.DataFrame, Q: pl.DataFrame, T: pl.DataFrame) -> pl.DataFrame:
     name_freq = Q.group_by("country", "name_core").agg(pl.len().alias("s1_name_freq"))
     qf = Q.select("rid", "country", "name_core").join(name_freq, on=["country", "name_core"], how="left")
     tf = (T.select("rid", "country", "name_core").join(name_freq, on=["country", "name_core"], how="left")

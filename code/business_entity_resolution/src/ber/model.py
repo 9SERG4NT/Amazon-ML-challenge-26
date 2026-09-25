@@ -11,6 +11,7 @@ import numpy as np
 import polars as pl
 
 from .metrics import macro_f05
+from .partition import by_partition
 
 ID_COLS = ("q_rid", "t_rid")
 DEFAULT_PARAMS = {
@@ -107,12 +108,19 @@ def decide_gated(scores: pl.DataFrame, gate: float, floor: float = 0.05, exclusi
     return decide_expected_f(s.join(confident.select("q_rid"), on="q_rid", how="semi"), floor=floor, exclusive=False)
 
 
-def probability_context(scores: pl.DataFrame) -> pl.DataFrame:
+def probability_context(scores: pl.DataFrame, part: np.ndarray | None = None) -> pl.DataFrame:
     """Second-stage features from first-stage probabilities (row order preserved).
 
-    ``scores`` has q_rid, t_rid, src, p1.
+    ``scores`` has q_rid, t_rid, src, p1. ``part`` (e.g. ``partition.country_codes``)
+    computes them one partition at a time, with the same result and a lower peak memory.
     """
     s = scores.select("q_rid", "t_rid", "src", "p1")
+    if part is not None:
+        return by_partition(s, part, _probability_context)
+    return _probability_context(s)
+
+
+def _probability_context(s: pl.DataFrame) -> pl.DataFrame:
     best_other = lambda over: (pl.when(pl.col("p1") == pl.col("p1").max().over(over))
                                .then(pl.col("p1").sort(descending=True).slice(1, 1).first().over(over))
                                .otherwise(pl.col("p1").max().over(over)).fill_null(0))
