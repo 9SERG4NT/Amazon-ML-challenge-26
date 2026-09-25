@@ -39,10 +39,13 @@
       }
     },
     {
-      "Sid": "PassOnlyTheSageMakerExecutionRole",
+      "Sid": "PassOnlyTheSageMakerExecutionRoles",
       "Effect": "Allow",
       "Action": "iam:PassRole",
-      "Resource": "arn:aws:iam::125650147728:role/service-role/AmazonSageMaker-ExecutionRole-20260925T130655",
+      "Resource": [
+        "arn:aws:iam::125650147728:role/service-role/AmazonSageMaker-ExecutionRole-20260925T163023",
+        "arn:aws:iam::125650147728:role/service-role/AmazonSageMaker-ExecutionRole-20260925T130655"
+      ],
       "Condition": {
         "StringEquals": {
           "iam:PassedToService": "sagemaker.amazonaws.com"
