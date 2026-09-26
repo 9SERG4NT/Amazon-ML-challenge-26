@@ -14,7 +14,7 @@ import sys
 import threading
 import time
 
-CONFIG = {"preset": "M-v7", "sample": 0.01, "min_ram_gb": 12}
+CONFIG = {"preset": "M-v7", "sample": 0.01, "min_ram_gb": 12, "args": ""}
 REPO = "https://github.com/9SERG4NT/Amazon-ML-challenge-26"
 BRANCH = "sumukh/full-pipeline-aws"
 NEEDED = {"train": ["train_source1.tsv", "train_source2.tsv", "train_source3.tsv", "train_ground_truth.tsv"],
@@ -83,7 +83,7 @@ validator = "/tmp/repo/resources/student_resource/utils/validate_submission.py"
 # 4. the run: every stage of the preset, log kept in the notebook output
 os.chdir(src_dir)
 rc = sh(f"{sys.executable} -u run_pipeline.py --data {DATA} --work {WORK} --out {OUT}/output --preset {CONFIG['preset']} "
-        f"--sample {CONFIG['sample']} --validator {validator} 2>&1 | tee {OUT}/run.log; exit ${{PIPESTATUS[0]}}", check=False)
+        f"--sample {CONFIG['sample']} {CONFIG.get('args', '')} --validator {validator} 2>&1 | tee {OUT}/run.log; exit ${{PIPESTATUS[0]}}", check=False)
 for f in glob.glob(f"{WORK}/runs/*/*.json") + glob.glob(f"{WORK}/block/*/*.json") + glob.glob(f"{WORK}/feat/*/*.json"):
     shutil.copy(f, f"{OUT}/{os.path.basename(os.path.dirname(f))}__{os.path.basename(f)}")
 for f in glob.glob(f"{WORK}/runs/*/stage*_fold*.txt"):  # fold models: a later session can score them frozen
