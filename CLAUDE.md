@@ -217,7 +217,14 @@ the shared eval slice.
 - **New AWS account 278311879294 (2026-09-26, root via `aws login`):** bucket `amazon-ml-challenge-26-278311879294`
   (private, AES256, TLS only), role/instance profile `mlc26-ec2-runner` (SSM + that bucket), security group
   `sg-008a21c8fd1ee3aca` (no inbound), 8-vCPU quota. It is on the **free plan: RunInstances refuses r7a.2xlarge** ("not
-  eligible for Free Tier") until the user upgrades to a paid plan. Then `infra/aws/ec2/launch_runner.sh <PRESET>` (or the same
+  eligible for Free Tier") until the user upgrades to a paid plan. **Upgraded to the paid plan at ~09:40 IST ($140 credits
+  carried over).** Runner **`i-04fb5a4206b8bb43e`** (r7a.2xlarge, us-east-1d, 48 GB swap) launched 09:33 IST; the user
+  uploaded `dataset/` (the classifier blocks Claude's presigned upload as "Data Exfiltration"). It runs M-v7 (log
+  `logs/M-v7.log`, 09:45 IST start), then `chain2.sh`: M-v6 via `infra/aws/ec2/run_versions.sh` (reuses prep), then
+  `MATCH-v6-frozen-tlu` on M-v7's features, touching `logs/CHAIN2_DONE`. Read-only SSM commands (tail logs) work. SageMaker:
+  every large-instance quota is 0; ml.m5.4xlarge training/spot requests are CASE_OPENED. Kaggle CPU sessions (30 GB)
+  cannot hold a full run: M-v6 there was killed in train blocking after prep peaked at 23.8 GB.
+  Then `infra/aws/ec2/launch_runner.sh <PRESET>` (or the same
   RunInstances call) starts a runner whose bootstrap waits for `dataset/`, runs the preset and syncs
   `experiments/logs/<PRESET>.log`, `predictions/<key>/`, `experiments/metrics/`, `models/<key>/` to the bucket. Creating
   resources there needs the user's explicit go-ahead (the classifier blocked the first attempt as "Modify Shared Resources").
