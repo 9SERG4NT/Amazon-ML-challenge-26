@@ -464,6 +464,19 @@ def stage_features(a, rv: V.RunVersions, P: Paths) -> dict:
     return out
 
 
+def _score_context(s: pl.DataFrame, name: str) -> pl.DataFrame:
+    """A pair score's competition context over every candidate of the split (row order kept)."""
+    best_other = lambda over: (pl.when(pl.col(name) == pl.col(name).max().over(over))
+                               .then(pl.col(name).sort(descending=True).slice(1, 1).first().over(over))
+                               .otherwise(pl.col(name).max().over(over)).fill_null(0))
+    return s.with_columns(
+        pl.col(name).rank("ordinal", descending=True).over("q_rid").cast(pl.Float32).alias(f"{name}_rank_q"),
+        pl.col(name).rank("ordinal", descending=True).over("t_rid").cast(pl.Float32).alias(f"{name}_rank_t"),
+        (pl.col(name) - best_other("q_rid")).cast(pl.Float32).alias(f"{name}_margin_q"),
+        (pl.col(name) - best_other("t_rid")).cast(pl.Float32).alias(f"{name}_margin_t"),
+        pl.col(name).max().over("q_rid").cast(pl.Float32).alias(f"{name}_top_q"))
+
+
 def _derived_features(rv: V.RunVersions, P: Paths) -> dict:
     """``base``'s feature parts plus the ``extra`` pair scores, joined by (q_rid, t_rid) in the parts' row order."""
     fv, out = rv.feat, {}
@@ -475,6 +488,8 @@ def _derived_features(rv: V.RunVersions, P: Paths) -> dict:
         for old in d.glob("part-*.parquet"):
             old.unlink()
         scores = [pl.read_parquet(extra_dir / f"{name}_{split}.parquet", columns=["q_rid", "t_rid", name]) for name in fv.extra]
+        if fv.extra_context:
+            scores = [_score_context(s, name) for s, name in zip(scores, fv.extra)]
         rows, missing, width = 0, dict.fromkeys(fv.extra, 0), 0
         for f in sorted((src / split).glob("part-*.parquet")):
             part = pl.read_parquet(f)

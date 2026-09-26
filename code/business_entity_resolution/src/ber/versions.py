@@ -68,6 +68,8 @@ class Feat:
     base: str | None = None         # reuse this FEAT version's parts (same blocking) instead of computing them again
     extra: tuple = ()               # external pair scores joined to ``base``'s parts by (q_rid, t_rid), one column
                                     # each, from <work>/extra/<NORM>__<BLK>/<name>_{train,test}.parquet
+    extra_context: bool = False     # + each extra score's competition context: its rank and its margin over the best
+                                    # other candidate of the same S1 and of the same target record, and the S1's top score
 
 
 @dataclass(frozen=True)
@@ -186,6 +188,10 @@ FEAT = _index(
                     "Devanagari, French accents), 1M training pairs per half, trained and scored on a Kaggle GPU "
                     "(infra/kaggle/ce); unseen pairs get the mean of both halves' models",
          number_gap=True, distinct=True, base="FEAT-v4", extra=("ce2",)),
+    Feat("FEAT-v8", "FEAT-v7 + ce2's competition context (71): rank and margin over the best other candidate of the same S1 "
+                    "and of the same target, and the S1's top ce2. The team's 'competition margins' (similarity minus the "
+                    "best competing pair) added +0.0011 on top of its cross-encoder",
+         number_gap=True, distinct=True, base="FEAT-v4", extra=("ce2",), extra_context=True),
 )
 
 MATCH = _index(
@@ -320,6 +326,7 @@ PRESETS = {
     # the team pipeline's strongest idea in ours: a cross-encoder score as a feature (M-v11 + ce1)
     "M-v25": ("NORM-v2", "BLK-v5-tlu40", "FEAT-v6", "MATCH-v6"),
     "M-v26": ("NORM-v2", "BLK-v5-tlu40", "FEAT-v7", "MATCH-v6"),
+    "M-v27": ("NORM-v2", "BLK-v5-tlu40", "FEAT-v8", "MATCH-v6"),
 }
 DEFAULT_PRESET = "M-v3"
 
