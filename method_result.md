@@ -98,6 +98,8 @@ Unless noted, the scores are on the DEV-10 **evaluation slice**: 20% of the DEV-
 | M-v3 | 2026-09-25 | 2 stages: stage 1 cross-fitted (3 folds) + stage 2 on stage-1 probability context; exclusive, expected-F | 99.45% | 46.9 | **0.9906** | 0.9963 | 0.9794 | 0.9814 / 0.9911 | — | Threshold 0.725 instead: 0.9904 (singletons 0.9935). EC2, DEV-10 |
 | **FULL-v1** (M-v3) | 2026-09-25 | M-v3 on the **full** data: fit 30% of train S1, scored on the full-density eval slice (441,521 S1); exclusive, gated expected-F (gate 0.5) | 98.32% | 47.5 | **0.9813** | 0.9952 | 0.9544 | 0.9774 / 0.9815 | **0.96** (public) | Perfect matcher on these candidates: 0.9947. India 0.9778, US 0.9837. Top of the public leaderboard: 0.99. The 0.02 gap to eval is a train/test shift (see "Leaderboard gap" below) |
 | **M-v5** | 2026-09-26 | Test-like universe (BLK-v4b@20-tlu40) + FEAT-v3 (number gap) + MATCH-v6 (75% fitted, lr 0.1); gated expected-F (gate 0.55). **Test-like eval slice**, not comparable with the full-universe rows | 98.69% | 47.8 | **0.9852** | 0.9957 | 0.9644 | 0.9808 / 0.9854 | **0.971** (public, rank ~400) | Perfect matcher on these candidates: 0.9959. India 0.9818, US 0.9875. `num_x_edit` carries 10.9% of the stage-1 gain |
+| **M-v6** | 2026-09-26 | M-v5 with FEAT-v4 (distinctive-part features); gated expected-F (gate 0.5). Test-like eval slice | 98.69% | 47.8 | **0.9856** | 0.9960 | 0.9647 | 0.9812 / 0.9859 | pending | India 0.9822, US 0.9878. Changes 6.9% of French S1's link sets (US/India 3.4–3.6%). Kaggle TPU run |
+| M-v7 | 2026-09-26 | Full universe with every distractor copied (BLK-v4b@20-dup2) + FEAT-v4 + MATCH-v6 | 98.17% | 47.5 | 0.9856 | 0.9978 | 0.9599 | 0.9924 / 0.9852 | not submitted | **Rejected:** the model learned to spot the copies and over-links the test (98.5% of S1, 4.20 links each) |
 
 ---
 
@@ -139,6 +141,35 @@ Copy the template below for each run, newest entry first. Record every run, incl
 - Conclusion: keep / drop / iterate
 - Next step:
 -->
+
+### M-v6 and M-v7 on full data — copied distractors teach the model to spot copies (M-v10 instead)
+
+- **Date:** 2026-09-26. M-v6 ran on a Kaggle TPU VM (queued 3.5 h, run 1 h 50 min); M-v7 on the new EC2 runner
+  (09:45–13:18 IST: prep 6 min, block 20 min, features 50 min, train 2 h 17 min, of which stage-1 scoring of 188M pairs
+  took 54 min; peak 58.8 GB).
+
+| Run | Eval slice | F0.5 | P | R | Singletons | India | US | Test: S1 linked | Test links / S1 |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| M-v5 (LB 0.971) | test-like (tlu40) | 0.9852 | 0.9957 | 0.9644 | 0.9808 | 0.9818 | 0.9875 | 94.1% | 3.27 |
+| **M-v6** (+ FEAT-v4) | test-like (tlu40) | **0.9856** | 0.9960 | 0.9647 | 0.9812 | 0.9822 | 0.9878 | 94.1% | 3.27 |
+| M-v7 (dup2 universe) | doubled distractors (copies) | 0.9856 | 0.9978 | 0.9599 | 0.9924 | 0.9819 | 0.9880 | **98.5%** | **4.20** |
+
+- **M-v6:** +0.0004 over M-v5 on the same slice; the test link count is unchanged (5,672,242 vs 5,672,319), but it changes
+  the link set of 6.9% of French S1 against 3.4–3.6% elsewhere, which is where FEAT-v4 aims. The validator passes.
+  Candidate for the next leaderboard submission.
+- **M-v7 fails on the test.** Its eval looks sound (precision 0.9978), but it links 98.5% of test S1 with 4.20 links each
+  (7.27M links against M-v5's 5.67M; truth ~94% and ~3.4). Every copied distractor sits next to an exact twin in its S1's
+  list: the same record, the same scores, a doubled name count. The model learned "an exact twin means a distractor", which
+  holds on the dup2 eval slice (it has copies too) and never on the test, where it then reads real lookalikes as matches.
+  The smoke test had warned of it (34% / 16% / 10% of test S1 linked in the 1% sample, 2.5× the tlu40 model), and so had
+  the `p1_margin_q` tie. **Lesson: a train-time augmentation must not leave a fingerprint the test lacks; check the test
+  profile (share linked, links per S1) before trusting an eval.** M-v8 (XGBoost) and M-v9 (blend) used the same features
+  and were stopped.
+- **M-v10 (`MATCH-v10`, preset M-v10): the same density without copies.** On M-v6's universe and features, distractor rows
+  get training weight 2 (the loss sees twice the lookalikes per S1), and the rule is chosen on a **doubled-distractor
+  eval**: every link to a distractor counts twice among an S1's predictions, which is what twice the lookalikes does to
+  precision when the model takes one of them. Every run now reports this second eval next to the plain one. It cannot
+  count a second lookalike taken where the first was not, so it errs on the lenient side.
 
 ### Test distractors are lookalikes of present S1 records — M-v7 doubles every distractor
 
