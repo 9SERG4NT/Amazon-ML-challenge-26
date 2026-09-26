@@ -144,6 +144,24 @@ Copy the template below for each run, newest entry first. Record every run, incl
 - Next step:
 -->
 
+### Our stage 2 on top of the team's pipeline (`experiments/stack_stage2.py`)
+
+- **Date:** 2026-09-26, 21:40 IST. The team's run scored **0.98** on the public leaderboard (M-v11: 0.970), so it is the
+  submission to build on. Rebuilding its main gain (the cross-encoder, 75% of its XGBoost gain) inside our pipeline
+  would take many GPU hours and at best reach 0.98. The opposite transfer is cheap: our stage 2 learns from the
+  first-stage probabilities of the rival candidates and lifts our F0.5 from 0.9825 to 0.9850 on full data. Their
+  write-up lists "a second-stage stacking model" as not yet tried.
+- **Method:** `stack_stage2.py` is standalone (numpy, polars, LightGBM), so it runs in the team's Kaggle notebook on
+  their scored pairs. Context features from p (rank within the S1, within the S1 and source, and within the target
+  record; best other probability for each; margins; sum; count above 0.5; S1 per record). A LightGBM with binary log
+  loss is cross-fitted over the held-out validation entities (5 folds by entity). The decision rule is chosen on
+  validation for p and for p2 alike (threshold, expected F0.5, gated expected F0.5, with exclusive assignment). The
+  output is written from p2 only if p2 wins on validation. `--france-shift auto` redoes the team's empty-share
+  calibration on the stage-2 output. Checked on synthetic data (validator PASS).
+- **Check on our data (running):** M-v11's stage-1 p1 on its eval slice (441,521 S1), stage 2 trained only on those
+  held-out entities (3 folds), as the team would train it on their 220,140 validation entities. Also without the
+  per-target features, and our production p2 as the input for reference.
+
 ### The team's second pipeline (bi-encoder + cross-encoder + XGBoost) against M-v11
 
 - **Date:** 2026-09-26, 21:05 IST. The teammates' final run R5 (design "B"), from the Kaggle notebook

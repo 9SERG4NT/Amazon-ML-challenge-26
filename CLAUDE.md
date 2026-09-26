@@ -49,6 +49,9 @@ python -m experiments.dev_v3 <cache>                                 # FEAT-v3 n
 # full-data work dir: eval-loss breakdown with examples; train/test shift checks (leak, stats, preds)
 python -m experiments.full_errors <work> NORM-v2__BLK-v4b@20__FEAT-v2__MATCH-v2 p2 gated_ef 0.5 12
 python -m experiments.shift_check <work> leak,stats,preds <dataset_dir>
+# our stage 2 on any first-stage scorer's pairs (built for the team's run; standalone: numpy, polars, lightgbm)
+python experiments/stack_stage2.py --val val_scored.parquet --test test_scored.parquet \
+  --truth <dataset>/train/train_ground_truth.tsv --s1 <dataset>/test/test_source1.tsv --out <dir> [--france-shift auto]
 ```
 
 Final package: copy the chosen run's TSVs from `s3://…/predictions/<version>/` into `output/`,
