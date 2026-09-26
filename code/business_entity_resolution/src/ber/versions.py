@@ -85,6 +85,9 @@ class Match:
     distractor_weight: float = 1.0  # training weight of rows whose target is a distractor (no train S1 links to it)
     eval_dup: bool = False          # choose the rule on the doubled-distractor eval (links to distractors count
                                     # twice: the test's lookalike density) instead of the plain eval slice
+    self_train: tuple = ()          # (hi, lo): self-training for countries without training links (France): the first
+                                    # model's confident candidates there (best for their target with p2 >= hi, or p2 <=
+                                    # lo) become pseudo-labelled fit rows and both stages are trained again
     train_countries: tuple = ()     # fit (and early-stop) only on S1 records of these countries and choose the rule on
                                     # their eval entities only: the other countries are scored as unseen, like France
     entity_weight: bool = False     # weight each training row by what its error costs its S1's F0.5 (macro metric:
@@ -217,6 +220,14 @@ MATCH = _index(
           lgb=(("learning_rate", 0.1),), fit_rest=True, train_countries=("US",)),
     Match("MATCH-v19-in", "the mirror of MATCH-v19-us: fitted on India only, the US scored as unseen",
           lgb=(("learning_rate", 0.1),), fit_rest=True, train_countries=("India",)),
+    Match("MATCH-v20-us", "self-training checked on a stand-in unseen country: MATCH-v19-us (fitted on US only), then India's "
+                          "confident candidates (best for their target with p2 >= 0.9: match; p2 <= 0.1: non-match) are "
+                          "pseudo-labelled and both stages retrained; India is scored out-of-fold. India's eval slice shows "
+                          "whether self-training recovers the unseen-country loss (MATCH-v19-us: India 0.9444)",
+          lgb=(("learning_rate", 0.1),), fit_rest=True, train_countries=("US",), self_train=(0.9, 0.1)),
+    Match("MATCH-v20", "MATCH-v6 + self-training on France (the test country without training links): its confident "
+                       "candidates are pseudo-labelled as in MATCH-v20-us and both stages retrained; French test entities "
+                       "are scored out-of-fold", lgb=(("learning_rate", 0.1),), fit_rest=True, self_train=(0.9, 0.1)),
 )
 
 PRESETS = {
@@ -247,6 +258,9 @@ PRESETS = {
     # leave-one-country-out: how much does a country the model never saw lose? (France has no training links)
     "M-v19-us": ("NORM-v2", "BLK-v5-tlu40", "FEAT-v4", "MATCH-v19-us"),
     "M-v19-in": ("NORM-v2", "BLK-v5-tlu40", "FEAT-v4", "MATCH-v19-in"),
+    # self-training for the unseen country: checked on India (M-v20-us), applied to France (M-v20)
+    "M-v20-us": ("NORM-v2", "BLK-v5-tlu40", "FEAT-v4", "MATCH-v20-us"),
+    "M-v20": ("NORM-v2", "BLK-v5-tlu40", "FEAT-v4", "MATCH-v20"),
 }
 DEFAULT_PRESET = "M-v3"
 

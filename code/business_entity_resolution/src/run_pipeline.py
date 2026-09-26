@@ -691,9 +691,93 @@ def stage_train(a, rv: V.RunVersions, P: Paths) -> dict:
         log("stage 2 predicted train (out-of-fold) and test")
         out.update({"features_stage2": len(cols2), "best_iterations_stage2": [m.best_iteration for m in s2],
                     "importance_stage2": _importance(s2)})
+    if mv.self_train:
+        if w is not None or mv.support or mv.stages != 2:
+            raise SystemExit("self-training works with the plain two-stage matcher (no weights, no support features)")
+        scores_tr, scores_te, out["self_train"] = _self_train(a, mv, P, role, fold, keep, cols, pairs, tr_parts, te_parts,
+                                                              C_tr, C_te, scores_tr, scores_te)
     scores_tr.write_parquet(P.run / "scores_train.parquet")
     scores_te.write_parquet(P.run / "scores_test.parquet")
     return out
+
+
+def _load_selected(parts: list[Path], sel: np.ndarray, cols: list[str], extra: np.ndarray | None = None) -> np.ndarray:
+    """Feature rows flagged in ``sel`` (one flag per candidate, in candidate order), plus their ``extra`` columns."""
+    out, off = [], 0
+    for p in parts:
+        df = pl.read_parquet(p, columns=cols)
+        m = sel[off:off + df.height]
+        if m.any():
+            X = df.filter(pl.Series(m)).to_numpy().astype(np.float32)
+            if extra is not None:
+                X = np.hstack([X, extra[off:off + df.height][m]])
+            out.append(X)
+        off += df.height
+    return np.vstack(out)
+
+
+def _self_train(a, mv: V.Match, P: Paths, role: np.ndarray, fold: np.ndarray, keep: np.ndarray, cols: list[str],
+                pairs: pl.DataFrame, tr_parts: list[Path], te_parts: list[Path], C_tr: pl.DataFrame, C_te: pl.DataFrame,
+                scores_tr: pl.DataFrame, scores_te: pl.DataFrame) -> tuple[pl.DataFrame, pl.DataFrame, dict]:
+    """Domain adaptation for a country without training links (France): self-training.
+
+    The first model's stage-2 probabilities label that country's confident candidates (the target's best candidate
+    with p2 >= hi: a match; p2 <= lo: not one). Those rows join the fit rows and both stages are trained again. The
+    country's entities are scored out-of-fold, so a pseudo-label never scores its own entity. With train_countries
+    (leave-one-country-out) the held-out country's train entities play France, and its eval slice measures the gain.
+    """
+    hi, lo = mv.self_train
+    country = lambda split: pl.read_parquet(P.prep / f"Q_{split}.parquet", columns=["country"])["country"].to_numpy()
+    c_tr = country("train")
+    if mv.train_countries:
+        split, parts, S = "train", tr_parts, scores_tr
+        target_q = ~np.isin(c_tr, list(mv.train_countries))
+    else:
+        split, parts, S = "test", te_parts, scores_te
+        target_q = ~np.isin(country("test"), np.unique(c_tr))
+    qq = S["q_rid"].to_numpy()
+    p2 = S["p2"].to_numpy()
+    best = S.select((pl.col("p2") == pl.col("p2").max().over("t_rid")).alias("b"))["b"].to_numpy()
+    tgt = target_q[qq]
+    pos, neg = tgt & best & (p2 >= hi), tgt & (p2 <= lo)
+    sel = pos | neg
+    y_ps, q_ps = pos[sel].astype(np.int8), qq[sel].astype(np.uint32)
+    log(f"self-training on the {split} split's unseen-country entities ({int(target_q.sum()):,} S1): "
+        f"{int(pos.sum()):,} pseudo-matches (p2 >= {hi}, best for their target), {int(neg.sum()):,} pseudo-non-matches "
+        f"(p2 <= {lo}), {int((tgt & ~sel).sum()):,} left out")
+
+    if split == "train":  # the held-out country's entities become fit entities: fitted on pseudo-labels, scored OOF
+        role_tr = np.where(target_q, FIT, role).astype(np.int8)
+        role_te = fold_te = None
+        role_c, fold_c, q_off = role_tr, fold, 0
+    else:  # unseen test entities: fitted on pseudo-labels, scored OOF; all other test entities get the fold mean
+        role_tr = role
+        fold_te = np.random.default_rng(a.seed + 5).integers(0, mv.folds, len(target_q)).astype(np.int8)
+        role_te = np.where(target_q, FIT, EVAL).astype(np.int8)
+        role_c, fold_c, q_off = np.concatenate([role, role_te]), np.concatenate([fold, fold_te]), len(role)
+    X, y, q, _ = _load_rows(tr_parts, keep, cols, pairs)  # the first model's training rows, then the pseudo-labelled
+    q_c = np.concatenate([q, q_ps + q_off]).astype(np.int64)
+    y_c = np.concatenate([y, y_ps])
+    X = np.vstack([X, _load_selected(parts, sel, cols)])
+    s1 = _cross_fit(X, y_c, q_c, role_c, fold_c, cols, mv, "stage1_self", P)
+    del X
+    p1_tr = _predict_parts(s1, tr_parts, cols, role_tr, fold)
+    p1_te = _predict_parts(s1, te_parts, cols, role_te, fold_te)
+    part = lambda C, sp: country_codes(C["q_rid"].to_numpy(), pl.read_parquet(P.prep / f"Q_{sp}.parquet", columns=["rid", "country"]))
+    extra_tr, extra_cols = _stage2_extra(C_tr, p1_tr, None, part(C_tr, "train"))
+    extra_te, _ = _stage2_extra(C_te, p1_te, None, part(C_te, "test"))
+    X2, _, _, _ = _load_rows(tr_parts, keep, cols, pairs, extra=extra_tr)
+    X2 = np.vstack([X2, _load_selected(parts, sel, cols, extra=extra_tr if split == "train" else extra_te)])
+    s2 = _cross_fit(X2, y_c, q_c, role_c, fold_c, cols + extra_cols, mv, "stage2_self", P)
+    del X2
+    p2_tr = _predict_parts(s2, tr_parts, cols, role_tr, fold, extra=extra_tr)
+    p2_te = _predict_parts(s2, te_parts, cols, role_te, fold_te, extra=extra_te)
+    log("self-training: both stages retrained with the pseudo-labels; train and test scored again")
+    info = {"split": split, "target_s1": int(target_q.sum()), "pseudo_matches": int(pos.sum()),
+            "pseudo_non_matches": int(neg.sum()), "left_out": int((tgt & ~sel).sum()), "hi": hi, "lo": lo,
+            "best_iterations_stage1": [m.best_iteration for m in s1], "best_iterations_stage2": [m.best_iteration for m in s2]}
+    return (C_tr.with_columns(pl.Series("p1", p1_tr), pl.Series("p2", p2_tr)),
+            C_te.with_columns(pl.Series("p1", p1_te), pl.Series("p2", p2_te)), info)
 
 
 # ------------------------------------------------------------------- predict
