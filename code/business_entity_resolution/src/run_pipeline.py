@@ -129,17 +129,62 @@ def train_universe(a, bv: V.Block, P: Paths) -> tuple[np.ndarray, np.ndarray] | 
     return keep_q, keep_t
 
 
-def universe_report(Q: pl.DataFrame, T: pl.DataFrame, universe: tuple[np.ndarray, np.ndarray],
-                    pairs: pl.DataFrame) -> dict:
-    """Per country: S1, targets and distractors per S1 left in a train universe (test: ~5.8 and ~2.3)."""
-    keep_q, keep_t = universe
-    linked = np.zeros(len(keep_t), bool)
-    linked[pairs["t_rid"].to_numpy()[keep_q[pairs["q_rid"].to_numpy()]]] = True
-    qc, tc = Q["country"].to_numpy(), T["country"].to_numpy()
+def distractor_copies(T: pl.DataFrame, pairs: pl.DataFrame, copies: int, n_all: int) -> pl.DataFrame:
+    """(rid, copy_rid) for the ``copies - 1`` extra copies of every distractor in T (a target no train S1 links to).
+
+    Copy r of a record gets rid + r * n_all (n_all = train targets in prep), so ids never collide; every
+    lookup by rid is a join, so the ids need not be dense.
+    """
+    d = T.select("rid").join(pairs.select(pl.col("t_rid").alias("rid")), on="rid", how="anti")
+    return pl.concat([d.select("rid", (pl.col("rid").cast(pl.UInt64) + r * n_all).cast(pl.UInt32).alias("copy_rid"))
+                      for r in range(1, copies)])
+
+
+def train_frames(a, bv: V.Block, P: Paths, with_copies: bool) -> tuple[pl.DataFrame, pl.DataFrame, pl.DataFrame | None]:
+    """The train S1 and target records of the block version's universe, and its distractor copies (or None).
+
+    ``with_copies`` appends the copies to the targets (features stage). Blocking searches the originals
+    and copies their candidate rows afterwards (``copy_candidates``): the same lists, less memory.
+    """
+    Q = pl.read_parquet(P.prep / "Q_train.parquet")
+    T = pl.read_parquet(P.prep / "T_train.parquet")
+    n_all = T.height
+    universe = train_universe(a, bv, P)
+    if universe is not None:
+        Q, T = Q.filter(pl.Series(universe[0])), T.filter(pl.Series(universe[1]))
+    if bv.dup_distractors <= 1:
+        return Q, T, None
+    copies = distractor_copies(T, pl.read_parquet(P.prep / "pairs.parquet"), bv.dup_distractors, n_all)
+    if with_copies:
+        T = pl.concat([T, T.join(copies, on="rid").with_columns(pl.col("copy_rid").alias("rid")).select(T.columns)])
+    return Q, T, copies
+
+
+def copy_candidates(C: pl.DataFrame, copies: pl.DataFrame, k: int, k_noaddr: int) -> pl.DataFrame:
+    """Add a candidate row for every copy of a candidate distractor, then cut each list back to its top k.
+
+    A copy ties with its original, so in a search over the doubled targets it would take the next slot:
+    the lists end up as if the copies had been searched (originals win ties at the cut).
+    """
+    extra = (C.join(copies.rename({"rid": "t_rid"}), on="t_rid")
+             .with_columns(pl.col("copy_rid").alias("t_rid")).select(C.columns))
+    r = pl.col("bscore").rank("ordinal", descending=True).over("q_rid", "src", "noaddr_pass")
+    return (pl.concat([C, extra]).filter(r <= pl.when(pl.col("noaddr_pass")).then(k_noaddr).otherwise(k))
+            .sort("q_rid", "src", "bscore", descending=[False, False, True], maintain_order=True))
+
+
+def universe_report(Q: pl.DataFrame, T: pl.DataFrame, pairs: pl.DataFrame, copies: int = 1) -> dict:
+    """Per country: S1, targets and distractors per S1 in a train universe, copies included (test: ~5.8 and ~2.3).
+
+    Q and T hold the universe's original records; a distractor is a target no S1 of the universe links to.
+    """
+    linked = pairs.join(Q.select(pl.col("rid").alias("q_rid")), on="q_rid", how="semi").select(pl.col("t_rid").alias("rid"))
+    nd_c = dict(T.join(linked, on="rid", how="anti").group_by("country").len().rows())
+    nt_c, nq_c = dict(T.group_by("country").len().rows()), dict(Q.group_by("country").len().rows())
     out = {}
-    for c in np.unique(qc):
-        nq, nt = int((keep_q & (qc == c)).sum()), int((keep_t & (tc == c)).sum())
-        nd = int((keep_t & ~linked & (tc == c)).sum())
+    for c in sorted(nq_c):
+        nq, nd = nq_c[c], nd_c.get(c, 0) * copies
+        nt = nt_c.get(c, 0) + nd_c.get(c, 0) * (copies - 1)
         out[str(c)] = {"s1": nq, "targets": nt, "targets_per_s1": round(nt / nq, 2), "distractors_per_s1": round(nd / nq, 2)}
     return out
 
@@ -208,14 +253,16 @@ def stage_block(a, rv: V.RunVersions, P: Paths) -> dict:
     P.block.mkdir(parents=True, exist_ok=True)
     write_json(P.block / "region_spec.json", spec or {})
     out = {"region_spec": spec}
-    universe = train_universe(a, bv, P)
     for split in ("train", "test"):
-        Q = pl.read_parquet(P.prep / f"Q_{split}.parquet")
-        T = pl.read_parquet(P.prep / f"T_{split}.parquet")
-        if split == "train" and universe is not None:
-            out["universe"] = universe_report(Q, T, universe, pl.read_parquet(P.prep / "pairs.parquet"))
-            log(f"test-like universe: {out['universe']}")
-            Q, T = Q.filter(pl.Series(universe[0])), T.filter(pl.Series(universe[1]))
+        copies = None
+        if split == "train":
+            Q, T, copies = train_frames(a, bv, P, with_copies=False)
+            if bv.keep_nonevals < 1 or copies is not None:
+                out["universe"] = universe_report(Q, T, pl.read_parquet(P.prep / "pairs.parquet"), bv.dup_distractors)
+                log(f"test-like universe: {out['universe']}")
+        else:
+            Q = pl.read_parquet(P.prep / f"Q_{split}.parquet")
+            T = pl.read_parquet(P.prep / f"T_{split}.parquet")
         parts = []
         for country in Q["country"].unique().sort().to_list():  # one country at a time bounds memory
             Qc, Tc = Q.filter(pl.col("country") == country), T.filter(pl.col("country") == country)
@@ -229,6 +276,11 @@ def stage_block(a, rv: V.RunVersions, P: Paths) -> dict:
             log(f"block {split}/{country}: S1 {Qc.height:,} x targets {Tc.height:,} -> "
                 f"{C.height:,} candidates ({time.time() - t0:.0f}s)")
         C = pl.concat(parts).sort("q_rid", "src", "bscore", descending=[False, False, True])
+        if copies is not None:
+            n0 = C.height
+            C = copy_candidates(C, copies, bv.k, bv.k_noaddr)
+            out["distractor_copies"] = {"records": copies.height, "candidates_before": n0, "candidates_after": C.height}
+            log(f"block {split}: {copies.height:,} distractor copies; candidates {n0:,} -> {C.height:,}")
         C.write_parquet(P.block / f"cand_{split}.parquet")
         log(f"block {split}: {C.height:,} candidates, {C.height / Q.height:.1f} per S1")
         out[split] = {"candidates": C.height, "per_s1": C.height / Q.height}
@@ -254,16 +306,16 @@ def stage_block(a, rv: V.RunVersions, P: Paths) -> dict:
 def stage_features(a, rv: V.RunVersions, P: Paths) -> dict:
     fv = rv.feat
     out = {}
-    universe = train_universe(a, rv.block, P)
     for split in ("train", "test"):
         d = P.feat / split
         d.mkdir(parents=True, exist_ok=True)
         for old in d.glob("part-*.parquet"):
             old.unlink()
-        Q = pl.read_parquet(P.prep / f"Q_{split}.parquet")
-        T = pl.read_parquet(P.prep / f"T_{split}.parquet")
-        if split == "train" and universe is not None:  # name frequencies and IDF count only the S1 records in it
-            Q, T = Q.filter(pl.Series(universe[0])), T.filter(pl.Series(universe[1]))
+        if split == "train":  # name frequencies and IDF count only the records of the universe (copies included)
+            Q, T, _ = train_frames(a, rv.block, P, with_copies=True)
+        else:
+            Q = pl.read_parquet(P.prep / f"Q_{split}.parquet")
+            T = pl.read_parquet(P.prep / f"T_{split}.parquet")
         if fv.distinct:  # each country's frequent tokens, learned from this split's own records
             for col, red in (("name_core", "name_red"), ("addr_n", "addr_red")):
                 frequent = frequent_tokens(Q, T, col)
@@ -439,6 +491,9 @@ def _stage_frozen(a, rv: V.RunVersions, P: Paths) -> dict:
 
 def stage_train(a, rv: V.RunVersions, P: Paths) -> dict:
     mv = rv.match
+    if mv.support and rv.block.dup_distractors > 1:
+        raise SystemExit("support features read the prep targets, which lack the distractor copies of "
+                         f"{rv.block.id}: use a matcher without support")
     P.run.mkdir(parents=True, exist_ok=True)
     if mv.frozen_from:
         return _stage_frozen(a, rv, P)

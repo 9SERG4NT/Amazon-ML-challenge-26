@@ -45,6 +45,8 @@ class Block:
     region_min_cross: int = 10          # merge two regions when this many training links cross them
     keep_nonevals: float = 1.0      # test-like universe: keep this share of non-eval train S1 (with their true
                                     # targets); the rest leave with their targets, so distractors per S1 rise
+    dup_distractors: int = 1        # train universe: every distractor (a target no train S1 links to) appears this
+                                    # many times; the copies take top-k slots like the originals would
 
 
 @dataclass(frozen=True)
@@ -111,6 +113,13 @@ BLOCK = _index(
                               "train universe a top-40 main pass with a top-5 name-only pass finds 98.82% of eval "
                               "links against 98.32% for BLK-v4b@20, at ~90 instead of 47.5 candidates per S1; a "
                               "deeper name-only pass adds only 0.11 points", k=40, keep_nonevals=0.4),
+    Block("BLK-v4b@20-dup2", "BLK-v4b@20 on the full train universe with every distractor twice: the test has "
+                             "twice train's distractors per S1 with the same mix. As many test distractors as "
+                             "train ones share the name and street of a present S1 (India 9% / US 20%); in the "
+                             "tlu40 universe only about half do, since dropping an S1 orphans its lookalikes. "
+                             "Duplicating keeps the mix and doubles the lookalikes per S1 (US 2.3, India 2.6 "
+                             "distractors per S1; test 2.3)",
+          dup_distractors=2),
 )
 
 FEAT = _index(
@@ -157,6 +166,8 @@ PRESETS = {
     # trained and validated in the test-like universe (the leaderboard disagreed with the full-train one)
     "M-v5": ("NORM-v2", "BLK-v4b@20-tlu40", "FEAT-v3", "MATCH-v6"),
     "M-v6": ("NORM-v2", "BLK-v4b@20-tlu40", "FEAT-v4", "MATCH-v6"),
+    # the full train universe with its distractors doubled: as many hard lookalikes per S1 as the test
+    "M-v7": ("NORM-v2", "BLK-v4b@20-dup2", "FEAT-v4", "MATCH-v6"),
 }
 DEFAULT_PRESET = "M-v3"
 
