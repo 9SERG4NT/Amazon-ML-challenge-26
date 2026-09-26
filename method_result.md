@@ -142,6 +142,32 @@ Copy the template below for each run, newest entry first. Record every run, incl
 - Next step:
 -->
 
+### BLK-v5 — a learned candidate filter: from 48 to a few candidates per S1 (M-v11, M-v12)
+
+- **Date:** 2026-09-26. Commit `0d4079d`. Why: the organisers announced on 2026-09-26 that `candidate_pairs.tsv` counts in
+  the final ranking, and a smaller candidate set per S1 ranks higher. It must be the exact set the matcher scores (the
+  last of several blocking/filtering stages is allowed). Our search kept 47.8 per S1 in the test-like universe (48.1 on
+  the test), almost all of them low-ranked rivals: ~3.4 true links per S1.
+- **Uniform top-k is a poor lever.** From the M-v6 search (eval slice): top-5 / 10 / 20 per source find 96.49 / 97.90 /
+  98.69% of true links at 17.8 / 27.8 / 47.8 candidates per S1 (the name-only pass alone adds 7.8). Halving the list
+  costs 0.8 points of recall.
+- **Method: a second blocking stage.** A small LightGBM (63 leaves, lr 0.1, 3 folds) sees only what the search produced:
+  the source, the blocking score and its name and address cosines, the name-only flag, and the competition context of
+  those scores (rank within the S1's list per source and overall, gap to the S1's best, list length, how many S1
+  records retrieved the target and this S1's rank among them, margin over the best other S1, S1 name frequencies). No
+  string similarity: it is cheap and runs on the search output only. It is trained like the matchers (fit and rest
+  entities of the universe, out-of-fold on fit rows, fold mean elsewhere). The threshold keeps **99.5% of the true links
+  the search found for fit entities** (out-of-fold, so the eval slice is never used to choose it). Features, training and
+  the decision rule then run only on the kept candidates, so the file is exactly what the matcher scores. The search
+  output of BLK-v4b@20-tlu40 is reused when cached.
+- **1% smoke run (Kaggle CPU):** 45.6 → **3.7 candidates per S1** on train; eval pair recall 0.9995 → 0.9933; eval F0.5
+  0.9952 (unfiltered smoke runs: 0.9954–0.9956); a perfect matcher on the kept candidates would score 0.9983. The curve
+  (share of found fit links kept: eval pair recall, candidates per S1): 0.98: 0.9787, 3.4; 0.99: 0.9889, 3.5; 0.995:
+  0.9933, 3.7; 0.997: 0.9960, 4.0; 0.999: 0.9981, 5.6. The sample has ~10× less competition than the full data, so the
+  full run decides.
+- **Full run:** running on the EC2 runner (chain5 from 16:00 IST): M-v11 = BLK-v5-tlu40 + FEAT-v4 + MATCH-v6, then
+  M-v12 = the same with MATCH-v10, then M-v10 and M-v6 on the unfiltered candidates for the comparison.
+
 ### M-v6 and M-v7 on full data — copied distractors teach the model to spot copies (M-v10 instead)
 
 - **Date:** 2026-09-26. M-v6 ran on a Kaggle TPU VM (queued 3.5 h, run 1 h 50 min); M-v7 on the new EC2 runner

@@ -16,6 +16,10 @@ Full rules: `resources/student_resource/README.md`. Hard constraints that shape 
 - Deliverables: `output/matching_results.tsv` (scored), `output/candidate_pairs.tsv` (the exact set
   the model scored; every match must be in it), runnable `code/business_entity_resolution/`,
   filled `Documentation_template.md`.
+- **Organisers' update (2026-09-26): `candidate_pairs.tsv` and the code behind it count in the final
+  ranking, and a smaller candidate set per S1 ranks higher** (beyond the leaderboard score). Blocking must
+  scale (no all-pairs). Several blocking/filtering stages are allowed; the file is the last one, i.e. what
+  the matcher scores. Our answer: the learned candidate filter BLK-v5-tlu40 (presets M-v11, M-v12).
 
 `method_result.md` is the experiment log and the source for the final write-up. Add every
 run there (DEV-10 and full-data), keep its summary tables in sync.
@@ -223,7 +227,11 @@ the shared eval slice.
   `logs/M-v7.log`, 09:45 IST start), then `chain3.sh` (replaced chain2 at 10:29 IST before it started anything), each via
   `infra/aws/ec2/run_versions.sh`: M-v8 (XGBoost, MATCH-v8, on M-v7's cached features; installs xgboost 3.4.1 first), M-v9
   (MATCH-v9 = mean of M-v7's and M-v8's probabilities), M-v6 (reuses prep), then `MATCH-v6-frozen-tlu` on M-v7's
-  features, touching `logs/CHAIN3_DONE`. Kaggle GPU sessions have the same ~29 GB RAM as CPU ones: no full run fits. Read-only SSM commands (tail logs) work. SageMaker:
+  features, touching `logs/CHAIN3_DONE`. chain3 was stopped after M-v7 failed its test profile. **chain4** (15:08 IST)
+  ran tlu40 blocking + FEAT-v4 features (`logs/tlu40-FEAT-v4-features.log`); its bash was killed at 15:50 IST so its
+  M-v10 / M-v6 steps would not run, and **chain5** (`/opt/mlc26/chain5.sh`) waits for `tlu40-FEAT-v4-features.exit`,
+  then runs M-v11 (block,features,train,predict: the learned candidate filter), M-v12 (train,predict), M-v10 and M-v6
+  (train,predict on the unfiltered candidates) and touches `logs/CHAIN5_DONE`; log names are the version keys. Kaggle GPU sessions have the same ~29 GB RAM as CPU ones: no full run fits. Read-only SSM commands (tail logs) work. SageMaker:
   every large-instance quota is 0; ml.m5.4xlarge training/spot requests are CASE_OPENED. Kaggle CPU sessions (30 GB)
   cannot hold a full run: M-v6 there was killed in train blocking after prep peaked at 23.8 GB.
   Then `infra/aws/ec2/launch_runner.sh <PRESET>` (or the same

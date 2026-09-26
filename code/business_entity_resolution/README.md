@@ -64,12 +64,18 @@ End-to-end presets (`--list` prints them all; the default stays M-v3, the first 
 | M-v7 | BLK-v4b@20-dup2 (every distractor copied), FEAT-v4, MATCH-v6 | rejected: learns to spot the copies |
 | M-v8 / M-v9 | M-v7 with XGBoost (MATCH-v8) / a LightGBM + XGBoost blend (MATCH-v9) | built on M-v7's features, not run |
 | M-v10 | M-v6 with distractor rows weighted ×2 and the rule chosen on the doubled-distractor eval (MATCH-v10) | running |
+| M-v11 / M-v12 | M-v6 / M-v10 on the filtered candidates (BLK-v5-tlu40: a learned filter keeps a few candidates per S1) | running |
 
 ```bash
 python run_pipeline.py --list                          # every version and preset
 python run_pipeline.py ... --preset M-v6               # an end-to-end version
 python run_pipeline.py ... --preset M-v6 --match MATCH-v10 --stages train,predict   # swap one component, reuse the rest
 ```
+
+BLK-v5-tlu40 adds a **learned candidate filter** after the search: a small LightGBM on the blocking scores and
+their competition context (no string similarity) keeps the candidates above the threshold that retains 99.5% of
+the true links the search found for fit entities (out-of-fold). Features and the matcher then see only those, so
+`candidate_pairs.tsv` is exactly the scored set. `search_from` reuses a cached search with the same settings.
 
 MATCH versions can also switch the model family (`algo="xgb"`, XGBoost, Apache-2.0), blend two
 runs on the same features (`blend_of`), weight distractor rows (`distractor_weight`) and score an
