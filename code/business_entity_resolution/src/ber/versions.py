@@ -192,6 +192,9 @@ FEAT = _index(
                     "and of the same target, and the S1's top ce2. The team's 'competition margins' (similarity minus the "
                     "best competing pair) added +0.0011 on top of its cross-encoder",
          number_gap=True, distinct=True, base="FEAT-v4", extra=("ce2",), extra_context=True),
+    Feat("FEAT-v9", "FEAT-v4 + both cross-encoders (ce1: 4-layer BERT on normalised text; ce2: multilingual-e5-small on "
+                    "raw text) with their competition context (77)",
+         number_gap=True, distinct=True, base="FEAT-v4", extra=("ce1", "ce2"), extra_context=True),
 )
 
 MATCH = _index(
@@ -327,6 +330,7 @@ PRESETS = {
     "M-v25": ("NORM-v2", "BLK-v5-tlu40", "FEAT-v6", "MATCH-v6"),
     "M-v26": ("NORM-v2", "BLK-v5-tlu40", "FEAT-v7", "MATCH-v6"),
     "M-v27": ("NORM-v2", "BLK-v5-tlu40", "FEAT-v8", "MATCH-v6"),
+    "M-v28": ("NORM-v2", "BLK-v5-tlu40", "FEAT-v9", "MATCH-v6"),
 }
 DEFAULT_PRESET = "M-v3"
 
