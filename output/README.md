@@ -25,6 +25,8 @@ in git: `*.tsv` is ignored outside the top of this folder, and `candidate_pairs.
 | M-v6 (Kaggle TPU run) | `NORM-v2__BLK-v4b@20-tlu40__FEAT-v4__MATCH-v6` | test-like | 0.9856 | pending | `f055edc3edaeb41e0204d35dae4be8e9` |
 | **M-v11** (EC2, current) | `NORM-v2__BLK-v5-tlu40__FEAT-v4__MATCH-v6` | test-like | 0.9854 | **0.970** | `f96f52d773991cc04870a36cf4b3ed46` |
 | M-v7 (rejected, not downloaded) | `NORM-v2__BLK-v4b@20-dup2__FEAT-v4__MATCH-v6` | doubled distractors (copies) | 0.9856 | not submitted | — |
+| **M-v28** (M-v11 + both cross-encoders + their context; next upload) | `NORM-v2__BLK-v5-tlu40__FEAT-v9__MATCH-v6` | test-like | **0.9885** | pending | `21ce5362e10b414c0ecf78c365321c0c` |
+| M-v27 (not downloaded: ties M-v26) | `NORM-v2__BLK-v5-tlu40__FEAT-v8__MATCH-v6` | test-like | 0.9884 | not submitted | — |
 | **M-v26** (EC2 + Kaggle: M-v11 + the multilingual cross-encoder feature) | `NORM-v2__BLK-v5-tlu40__FEAT-v7__MATCH-v6` | test-like | **0.9884** | pending | `8f9305f23178159c2929e6652d71d29b` |
 | **M-v25** (EC2: M-v11 + a cross-encoder feature) | `NORM-v2__BLK-v5-tlu40__FEAT-v6__MATCH-v6` | test-like | **0.9875** | pending | `6457acf27c2cfc69f83bd12630ead0d6` |
 | **Team pipeline B, run R5** (Kaggle, teammates; best) | `TEAM-B-R5__e5-FAISS__XGBoost-CE` | their own 10% held out | 0.9875 (not comparable) | **0.98** | `67bdd7f85c52d143128e40dff42418eb` |

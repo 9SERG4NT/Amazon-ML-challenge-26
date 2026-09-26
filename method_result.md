@@ -103,6 +103,8 @@ Unless noted, the scores are on the DEV-10 **evaluation slice**: 20% of the DEV-
 | M-v7 | 2026-09-26 | Full universe with every distractor copied (BLK-v4b@20-dup2) + FEAT-v4 + MATCH-v6 | 98.17% | 47.5 | 0.9856 | 0.9978 | 0.9599 | 0.9924 / 0.9852 | not submitted | **Rejected:** the model learned to spot the copies and over-links the test (98.5% of S1, 4.20 links each) |
 | **M-v25** | 2026-09-27 | M-v11 + ce1: a 4-layer BERT cross-encoder's match probability for the pair (FEAT-v6), cross-fitted on two halves of the fit entities; gated expected-F (gate 0.6). Test-like eval slice | 98.21% | 6.0 | **0.9875** | 0.9979 | 0.9664 | 0.9928 / 0.9872 | pending | Doubled-distractor 0.9870. India 0.9851, US 0.9891. Stage 1 alone 0.9861 (M-v11's 0.9833). Test: France 94.5% linked, 3.28 links per S1 (M-v11 3.13). Same candidates as M-v11 |
 | **M-v26** | 2026-09-27 | M-v11 + ce2: a multilingual-e5-small cross-encoder (raw texts, trained on Kaggle's 2× T4) as a feature (FEAT-v7); gated expected-F (gate 0.5). Test-like eval slice | 98.21% | 6.0 | **0.9884** | 0.9981 | 0.9680 | 0.9927 / 0.9881 | pending | Doubled-distractor 0.9880. India 0.9861, US 0.9899. Stage 1 alone 0.9872. Test: France 94.1% linked, 3.21 links per S1. Same candidates as M-v11 |
+| M-v27 | 2026-09-27 | M-v26 + ce2's competition context (rank, margins, the S1's top ce2; FEAT-v8); expected-F (0.4). Test-like eval slice | 98.21% | 6.0 | 0.9884 | 0.9981 | 0.9680 | 0.9916 / 0.9882 | not submitted | Ties M-v26: the context lifts stage 1 (0.9872 → 0.9881), but stage 2 already sees the rival context. Test: France 3.20 links per S1 |
+| **M-v28** | 2026-09-27 | M-v11 + both cross-encoders (ce1 + ce2) with their competition context (FEAT-v9, 77 features); gated expected-F (gate 0.5). Test-like eval slice | 98.21% | 6.0 | **0.9885** | 0.9983 | 0.9682 | 0.9934 / 0.9883 | pending | **Best eval and doubled-distractor (0.9882).** India 0.9864, US 0.9900. Test: France 94.2% linked, 3.22 links per S1. Same candidates as M-v11 |
 | TEAM-B-R5 (teammates) | 2026-09-26 | The team's second pipeline: fine-tuned e5-small bi-encoder + FAISS blocking, graph filter, XGBoost with a cross-encoder score, expected F0.5, French logit shift. **Their own validation** (10% of train S1 held out), not comparable with the rows above | 98.16% | 4.78 | 0.9875 | — | — | 0.9850 / 0.9876 | pending | 5.95 candidates per test S1. Links more than M-v11 (France 3.17 against 3.13 per S1). See section 5 |
 
 ---
@@ -208,6 +210,24 @@ Copy the template below for each run, newest entry first. Record every run, incl
   scores went Kaggle → laptop → S3 (`experiments/ce/NORM-v2__BLK-v5-tlu40/ce2_*.parquet`, md5 train `e702a55e…`,
   test `d53f51d8…`). The runner had stopped itself while idle; it was restarted, and chain19 runs M-v26 (ce2),
   M-v27 (ce2 + its competition context) and M-v28 (FEAT-v9: ce1 + ce2 + context).
+- **Results (chain19, 05:10–05:27 IST; about 6 minutes each):**
+
+| Eval slice (441,521 S1) | M-v11 | M-v25 (ce1) | M-v26 (ce2) | M-v27 (ce2 + context) | **M-v28 (ce1 + ce2 + context)** |
+|---|---:|---:|---:|---:|---:|
+| F0.5 | 0.9854 | 0.9875 | 0.9884 | 0.9884 | **0.9885** |
+| Doubled-distractor F0.5 | 0.9845 | 0.9870 | 0.9880 | 0.9880 | **0.9882** |
+| Precision / recall | 0.9962 / 0.9639 | 0.9979 / 0.9664 | 0.9981 / 0.9680 | 0.9981 / 0.9680 | **0.9983 / 0.9682** |
+| Singletons | 0.9816 | 0.9928 | 0.9927 | 0.9916 | **0.9934** |
+| India / US | 0.9817 / 0.9879 | 0.9851 / 0.9891 | 0.9861 / 0.9899 | 0.9861 / 0.9898 | **0.9864 / 0.9900** |
+| Stage 1 alone | 0.9833 | 0.9861 | 0.9872 | 0.9881 | 0.9883 |
+| Test: France linked, links / S1 | 93.9%, 3.13 | 94.5%, 3.28 | 94.1%, 3.21 | 94.2%, 3.20 | 94.2%, 3.22 |
+
+  The multilingual model (ce2) is worth +0.0009 over the 4-layer BERT (ce1). Both together, with their context, add
+  another +0.0001 on the eval and +0.0002 on the doubled-distractor eval. The context features lift stage 1, not the
+  final score, because stage 2 already reads the rival probabilities. **M-v28 is the leaderboard candidate:** best
+  on both evals, and its two text models read different inputs (normalised ASCII and raw scripts). All runs keep
+  M-v11's candidate file. Files in `output/runs/<version key>/` (M-v28 md5 `21ce5362…`, M-v26 `8f9305f2…`,
+  M-v25 `6457acf2…`).
 
 ### Our stage 2 on top of the team's pipeline (`experiments/stack_stage2.py`)
 
