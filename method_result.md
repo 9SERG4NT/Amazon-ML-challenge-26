@@ -146,7 +146,7 @@ Copy the template below for each run, newest entry first. Record every run, incl
 
 ### A cross-encoder feature, the team pipeline's main idea (FEAT-v6 / FEAT-v7 → M-v25 / M-v26)
 
-- **Date:** 2026-09-26, 23:30 IST (deadline: 2026-09-27 midnight). The team's cross-encoder carries 75% of its XGBoost
+- **Date:** 2026-09-26, 22:30 IST (deadline: 2026-09-27 midnight). The team's cross-encoder carries 75% of its XGBoost
   gain (their validation 0.9812 → 0.9856 when added), and their run scores 0.98 against our 0.970. A text model that
   reads both records together should also transfer better to France than hand-made string features: in the
   leave-one-country-out runs an unseen country lost 0.024–0.037.
