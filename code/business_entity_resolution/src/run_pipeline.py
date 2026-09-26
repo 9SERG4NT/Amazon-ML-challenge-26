@@ -490,8 +490,29 @@ def _stage_frozen(a, rv: V.RunVersions, P: Paths) -> dict:
     return {"frozen_from": src.name, "rows": C.height}
 
 
+def _stage_blend(rv: V.RunVersions, P: Paths) -> dict:
+    """Average the stage-1/stage-2 probabilities of runs on the same blocking and features (same rows, same order)."""
+    srcs = [P.run.parent / f"{rv.key('features')}__{m}" for m in rv.match.blend_of]
+    out = {"blend_of": [s.name for s in srcs]}
+    for split in ("train", "test"):
+        frames = [pl.read_parquet(s / f"scores_{split}.parquet") for s in srcs]
+        base = frames[0].select("q_rid", "t_rid", "src")
+        for f in frames[1:]:
+            if not f.select("q_rid", "t_rid").equals(base.select("q_rid", "t_rid")):
+                raise SystemExit(f"{split} scores of {srcs} are not on the same candidate rows")
+        cols = [c for c in ("p1", "p2") if all(c in f.columns for f in frames)]
+        blended = base.with_columns([(sum(f[c] for f in frames) / len(frames)).cast(pl.Float32).alias(c) for c in cols])
+        blended.write_parquet(P.run / f"scores_{split}.parquet")
+        out[split] = {"rows": blended.height, "scores": cols}
+    log(f"blended {', '.join(s.name for s in srcs)}")
+    return out
+
+
 def stage_train(a, rv: V.RunVersions, P: Paths) -> dict:
     mv = rv.match
+    if mv.blend_of:
+        P.run.mkdir(parents=True, exist_ok=True)
+        return _stage_blend(rv, P)
     if mv.support and rv.block.dup_distractors > 1:
         raise SystemExit("support features read the prep targets, which lack the distractor copies of "
                          f"{rv.block.id}: use a matcher without support")

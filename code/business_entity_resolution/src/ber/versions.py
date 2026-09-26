@@ -73,6 +73,8 @@ class Match:
     frozen_from: str | None = None  # score with the fold models of run <NORM>__<frozen_from> instead of training;
                                     # the train split only, to measure an old model in a new universe
     algo: str = "lgb"               # "lgb" (LightGBM) or "xgb" (XGBoost hist; ``lgb`` then holds XGBoost params)
+    blend_of: tuple = ()            # MATCH ids of runs on the same blocking and features: no training, their
+                                    # stage-1 and stage-2 probabilities are averaged and the rule is chosen again
 
     def lgb_params(self) -> dict:
         return dict(self.lgb)
@@ -165,6 +167,9 @@ MATCH = _index(
                       "(the LightGBM setting), learning rate 0.1, same folds, early-stop slice, stage 2 and rules. A "
                       "second model family on the same features, for comparison and a later blend",
           lgb=(("eta", 0.1),), fit_rest=True, algo="xgb"),
+    Match("MATCH-v9", "blend of MATCH-v6 (LightGBM) and MATCH-v8 (XGBoost) on the same blocking and features: the mean "
+                      "of their stage-1 and stage-2 probabilities (both out-of-fold on fit rows, fold means elsewhere), "
+                      "rule chosen on the eval slice", fit_rest=True, blend_of=("MATCH-v6", "MATCH-v8")),
 )
 
 PRESETS = {
@@ -178,6 +183,7 @@ PRESETS = {
     # the full train universe with its distractors doubled: as many hard lookalikes per S1 as the test
     "M-v7": ("NORM-v2", "BLK-v4b@20-dup2", "FEAT-v4", "MATCH-v6"),
     "M-v8": ("NORM-v2", "BLK-v4b@20-dup2", "FEAT-v4", "MATCH-v8"),
+    "M-v9": ("NORM-v2", "BLK-v4b@20-dup2", "FEAT-v4", "MATCH-v9"),
 }
 DEFAULT_PRESET = "M-v3"
 
