@@ -417,6 +417,8 @@ def _recall_reports(C: pl.DataFrame, P: Paths, q_universe: pl.DataFrame, at_k: b
 # ------------------------------------------------------------------ features
 def stage_features(a, rv: V.RunVersions, P: Paths) -> dict:
     fv = rv.feat
+    if fv.base:
+        return _derived_features(rv, P)
     out = {}
     for split in ("train", "test"):
         d = P.feat / split
@@ -459,6 +461,31 @@ def stage_features(a, rv: V.RunVersions, P: Paths) -> dict:
             width = part.width
             log(f"features {split} part {i}: rows {s:,}-{s + c.height:,}")
         out[split] = {"rows": C.height, "parts": -(-C.height // n), "features": width - 2}
+    return out
+
+
+def _derived_features(rv: V.RunVersions, P: Paths) -> dict:
+    """``base``'s feature parts plus the ``extra`` pair scores, joined by (q_rid, t_rid) in the parts' row order."""
+    fv, out = rv.feat, {}
+    src = P.feat.parent / f"{rv.key('block')}__{fv.base}"
+    extra_dir = P.block.parent.parent / "extra" / rv.key("block")
+    for split in ("train", "test"):
+        d = P.feat / split
+        d.mkdir(parents=True, exist_ok=True)
+        for old in d.glob("part-*.parquet"):
+            old.unlink()
+        scores = [pl.read_parquet(extra_dir / f"{name}_{split}.parquet", columns=["q_rid", "t_rid", name]) for name in fv.extra]
+        rows, missing, width = 0, dict.fromkeys(fv.extra, 0), 0
+        for f in sorted((src / split).glob("part-*.parquet")):
+            part = pl.read_parquet(f)
+            for s in scores:
+                part = part.join(s, on=["q_rid", "t_rid"], how="left", maintain_order="left")
+            for name in fv.extra:
+                missing[name] += part[name].null_count()
+            part.write_parquet(d / f.name)
+            rows, width = rows + part.height, part.width
+        log(f"features {split}: {fv.base} parts + {list(fv.extra)} for {rows:,} rows; missing {missing}")
+        out[split] = {"rows": rows, "features": width - 2, "base": fv.base, "extra": list(fv.extra), "missing": missing}
     return out
 
 

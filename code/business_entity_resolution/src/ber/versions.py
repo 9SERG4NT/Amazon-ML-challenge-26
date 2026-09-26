@@ -65,6 +65,9 @@ class Feat:
                                     # and how many targets share each core name (10 features)
     keep_numbers: bool = False      # numbers are never "frequent" tokens: the distinctive parts keep house numbers
     twin_flag: bool = False         # addr_twin_num_diff: identical address vector (cos_addr = 1) but disjoint house numbers
+    base: str | None = None         # reuse this FEAT version's parts (same blocking) instead of computing them again
+    extra: tuple = ()               # external pair scores joined to ``base``'s parts by (q_rid, t_rid), one column
+                                    # each, from <work>/extra/<NORM>__<BLK>/<name>_{train,test}.parquet
 
 
 @dataclass(frozen=True)
@@ -171,6 +174,13 @@ FEAT = _index(
                     "(cos_addr = 1) but a different house number (India 1.9%, US 0.006%), a combination the model barely "
                     "saw in training (US: 189 rows) and reads as the same address",
          number_gap=True, distinct=True, keep_numbers=True, twin_flag=True),
+    Feat("FEAT-v6", "FEAT-v4 + ce1: a cross-encoder's match probability for the pair (66), the team pipeline's strongest "
+                    "feature (75% of its XGBoost gain; leaderboard 0.98 against our 0.970). A 4-layer BERT "
+                    "(google/bert_uncased_L-4_H-256_A-4, Apache-2.0) fine-tuned on the normalised '<name> | <address>' "
+                    "of both records, cross-fitted over two halves of the fit entities: each fit pair is scored by "
+                    "the half that never saw its S1, every other pair (early stop, eval, test) by the first half's "
+                    "model (experiments/cross_encoder.py)",
+         number_gap=True, distinct=True, base="FEAT-v4", extra=("ce1",)),
 )
 
 MATCH = _index(
@@ -302,6 +312,8 @@ PRESETS = {
     "M-v23-in": ("NORM-v2", "BLK-v5-tlu40", "FEAT-v4", "MATCH-v23-in"),
     "M-v24-us": ("NORM-v2", "BLK-v5-tlu40", "FEAT-v4", "MATCH-v24-us"),
     "M-v24-in": ("NORM-v2", "BLK-v5-tlu40", "FEAT-v4", "MATCH-v24-in"),
+    # the team pipeline's strongest idea in ours: a cross-encoder score as a feature (M-v11 + ce1)
+    "M-v25": ("NORM-v2", "BLK-v5-tlu40", "FEAT-v6", "MATCH-v6"),
 }
 DEFAULT_PRESET = "M-v3"
 
