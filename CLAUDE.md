@@ -263,6 +263,10 @@ the shared eval slice.
   M-v10 (22:37 IST). chain16 waits for `CHAIN15_STOPPED` and for `ce2_{train,test}.parquet` under
   `s3://…/experiments/ce/NORM-v2__BLK-v5-tlu40/` (the Kaggle cross-encoder scores, uploaded from the laptop), copies
   them to `runs/full/extra/NORM-v2__BLK-v5-tlu40/` and runs M-v26 (features,train,predict); chain17 then runs M-v27.
+  Both Kaggle GPU runs (`serg4nt/mlc26-ce2` on T4x2, `serg4nt/mlc26-ce2-p100`) sat QUEUED for over an hour, so at the
+  user's go-ahead (23:40 IST) **chain18** replaced chains 16-17 (idle waits): PyTorch in a separate environment
+  `/opt/mlc26/venv-ce` (the pipeline's venv untouched; bench: bf16 2,357 scored pairs/s against fp32 1,306), ce1 on the
+  CPU (`logs/ce1.log`, ~3 h) → M-v25, then, once `ce2_*.parquet` are in S3, M-v26 and M-v27; touches `CHAIN18_DONE`.
   All heavy processing runs on Kaggle and EC2, not the laptop (the user's wish). Kaggle GPU sessions have the same ~29 GB RAM as CPU ones: no full run fits. Read-only SSM commands (tail logs) work. SageMaker:
   every large-instance quota is 0; ml.m5.4xlarge training/spot requests are CASE_OPENED. Kaggle CPU sessions (30 GB)
   cannot hold a full run: M-v6 there was killed in train blocking after prep peaked at 23.8 GB.
