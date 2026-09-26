@@ -208,6 +208,19 @@ the shared eval slice.
 ## AWS
 
 - **The AWS account was suspended on 2026-09-26 (~01:00 IST)**: the runner and S3 are unreachable. The fallback is a Kaggle notebook (`infra/kaggle/m-v6/`, TPU VM machine shape for its RAM), run on a private Kaggle dataset `serg4nt/mlc26-ber-data` that the user uploads. The permission classifier blocks Claude from uploading the challenge data.
+- **Kaggle:** the dataset `serg4nt/mlc26-ber-data` is up (7 files, sizes match). Kernels: `infra/kaggle/run_preset.py` is the
+  generic runner (logs memory every 5 min, saves the fold models); each kernel folder (`m-v6/`, `m-v7/`, `smoke/`) holds a
+  copy with its own CONFIG; push with `kaggle kernels push -p infra/kaggle/<folder>`. Only **one TPU batch session per user,
+  queued ones included** (a second push fails with "Maximum batch TPU session count of 1 reached"); TPU queue waits run
+  30+ minutes. CPU sessions (30 GB, 4 cores) start at once and fit the 1% smoke run (~5 min). `kaggle kernels logs` is
+  empty while a kernel runs; `kaggle kernels output <id> -p <dir>` downloads the finished outputs.
+- **New AWS account 278311879294 (2026-09-26, root via `aws login`):** bucket `amazon-ml-challenge-26-278311879294`
+  (private, AES256, TLS only), role/instance profile `mlc26-ec2-runner` (SSM + that bucket), security group
+  `sg-008a21c8fd1ee3aca` (no inbound), 8-vCPU quota. It is on the **free plan: RunInstances refuses r7a.2xlarge** ("not
+  eligible for Free Tier") until the user upgrades to a paid plan. Then `infra/aws/ec2/launch_runner.sh <PRESET>` (or the same
+  RunInstances call) starts a runner whose bootstrap waits for `dataset/`, runs the preset and syncs
+  `experiments/logs/<PRESET>.log`, `predictions/<key>/`, `experiments/metrics/`, `models/<key>/` to the bucket. Creating
+  resources there needs the user's explicit go-ahead (the classifier blocked the first attempt as "Modify Shared Resources").
 - **Account 125650147728, region us-east-1.** A teammate's notes describe a different account
   (911797456769); its bucket is not accessible from here.
 - **Auth:** `aws login` (short-lived credentials, root user; root has no access keys; enabling root

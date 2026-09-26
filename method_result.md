@@ -140,6 +140,52 @@ Copy the template below for each run, newest entry first. Record every run, incl
 - Next step:
 -->
 
+### Test distractors are lookalikes of present S1 records — M-v7 doubles every distractor
+
+- **Date:** 2026-09-26 (08:45–09:10 IST)
+- **Question:** M-v5 scores 0.9852 on the test-like eval slice but 0.971 on the leaderboard. Is the rest of the gap France (M-v5's
+  analysis implied France ≈ 0.89), or is the test-like universe still easier than the test?
+- **Script:** `experiments/distractor_twins.py <dataset_dir>` (raw TSVs, a 3% hash sample of targets, runs on the laptop).
+  A *twin* of a target is an S1 record of the same country with the same core-name key whose address shares ≥ 30% of its
+  words (≥ 50%, ≥ 70% as checks): a same-name, same-street lookalike.
+
+**1. Train distractors are lookalikes of specific S1 records.** Examples: S1 "Global Foundation VI, 14655 Summit View Lane,
+Loudoun County, VA" has the distractor "Global Foundation VI Corp, 14664 Summit View Ln, Loudoun County, Virginia"; S1 "Turner,
+German and Feist, 12010 Jantzen Drive, Portland" has "Co Turner, German and Feist, 12031 JANTZEN DRIVE". Distractors carry the
+same formatting noise as true matches (upper case 24% vs 26%, double spaces 9% vs 11%, brackets 9.5% vs 9.8%), so
+formatting does not separate them.
+
+**2. Twin rates (share of targets with a twin, overlap ≥ 0.3):**
+
+| Targets | India | US |
+|---|---:|---:|
+| Train matched records | 0.367 | 0.467 |
+| Train distractors, all S1 present | 0.097 | 0.200 |
+| Train distractors, 40% of S1 kept (test-like universe) | 0.041 | 0.081 |
+| Test, all targets | 0.256 | 0.358 |
+| **Test distractors** (test rate minus 60% matched at the train rate, over the 40% distractor share) | **0.090** | **0.201** |
+
+Test distractors are twins as often as train distractors with every S1 present, not as rarely as in the test-like universe.
+The generator seems to write each distractor from a present S1, so the test, with twice the distractors per S1, has twice the
+hard lookalikes per S1. The test-like universe doubled the count with orphans: dropping an S1 leaves its lookalikes looking
+like no present record, which are easy negatives. Its eval slice therefore faces about half the test's hard lookalikes and
+overstates the test score in every country. The "France ≈ 0.89" estimate assumed it did not, and is withdrawn.
+France behaves like the other countries on unlabelled checks: a house-number conflict in 0.9% of M-v5's French links (India
+0.9%, US 2.7%), and the models FULL-v1 and M-v5 disagree on 8.2% of French S1 (US 8.5%, India 5.4%).
+
+**3. Fix: `BLK-v4b@20-dup2` (preset M-v7 = NORM-v2 + BLK-v4b@20-dup2 + FEAT-v4 + MATCH-v6).** The full train universe with
+every distractor twice: 2.3 (US) and 2.6 (India) distractors per S1 (test 2.3), with train's mix of easy and hard ones, so
+twice the lookalikes per S1. Blocking searches the originals; each copy then gets its original's candidate rows and every
+list is cut back to its top k, which gives the lists a search over the doubled targets would (a copy ties with its
+original and takes the next slot). Features count the copies (name frequencies, frequent tokens). The eval slice is the same
+441,521 S1 entities, now facing test-like lookalike density; the US keeps the train's S1 density (twice the test's).
+- **1% smoke test (Kaggle CPU, 275 s):** runs end to end. 26,818 copies; candidates 1,007,953 → 1,009,944 (the lists were
+  full, so copies replace the weakest candidates); 2.43 distractors per S1. On the smoke test sample it linked 34% of French,
+  16% of Indian and 10% of US S1 (almost all false there), against 12.7 / 6.4 / 4.6% for the tlu40 + FEAT-v4 smoke model.
+  At 1% every rule scores within 0.0003 (threshold 0.675 chosen), so the rate is mostly the rule; the full-data eval decides.
+- **Possible artifact:** a copied distractor ties with its copy, so its stage-2 `p1_margin_q` is never positive, which the
+  test's distractors can be. Its stage-2 gain share is 0.2% in the smoke model; check it in the full run.
+
 ### M-v5 — the test-like universe, number-gap features, 75% of entities fitted
 
 - **Date:** 2026-09-26 (00:01 IST)
@@ -170,7 +216,8 @@ India 0.9818, US 0.9875.
 **Analysis**
 - The test-like score (0.9852) is not comparable with FULL-v1's full-universe 0.9813. The test-like universe is easier in one respect (half the rival S1 records, so blocking and exclusivity lose less) and harder in another (twice the distractors per S1). chain10 scores the frozen FULL-v1 model in this universe, to put the two on one scale.
 - **Public leaderboard: 0.971** (FULL-v1: 0.96; top of the board 0.99; the team is ranked ~400). Test-like training closed about half of the gap.
-- **The rest of the gap is most likely France.** The test-like eval (0.9852) covers only the US and India. If those countries score about 0.985 on the test too, 0.971 overall puts France (15% of test S1) at about **0.89**. That fits its 3× false-link rate in the 1% smoke check. Next: M-v6 (FEAT-v4, France-robust features).
+- **(Withdrawn 2026-09-26: the test-like universe has only half the test's hard lookalikes per S1, so its eval overstates
+  every country; see "Test distractors are lookalikes of present S1 records" above.)** The rest of the gap is most likely France. The test-like eval (0.9852) covers only the US and India. If those countries score about 0.985 on the test too, 0.971 overall puts France (15% of test S1) at about **0.89**. That fits its 3× false-link rate in the 1% smoke check. Next: M-v6 (FEAT-v4, France-robust features).
 
 ### France — generic names draw about 3× the false links (FEAT-v4)
 
