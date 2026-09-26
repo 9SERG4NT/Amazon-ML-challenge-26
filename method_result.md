@@ -197,12 +197,21 @@ Copy the template below for each run, newest entry first. Record every run, incl
 | M-v17 | LightGBM, metric-aligned weights | 0.9851 | 0.9840 | | | | p2 threshold 0.5 | 93.9%, 3.13–3.32 |
 | M-v13 | neural net (Adam), both stages | 0.9825 | 0.9811 | | | | p2 gated expected-F 0.55 | 94.2%, 3.27–3.39 |
 | M-v14 | LightGBM + neural net | 0.9847 | 0.9839 | | | | p2 gated expected-F 0.5 | 94.1%, 3.16–3.33 |
+| M-v15 | CatBoost, both stages | 0.9850 | 0.9840 | 0.9959 | 0.9634 | 0.9791 | p2 expected-F 0.2 | 94.0%, 3.10–3.35 |
+| M-v16 | LightGBM + CatBoost | 0.9854 | 0.9845 | 0.9963 | 0.9636 | 0.9823 | p2 gated expected-F 0.5 | 94.0%, 3.11–3.32 |
+| M-v18 | LightGBM + net + CatBoost | 0.9851 | 0.9842 | 0.9963 | 0.9625 | 0.9807 | p2 gated expected-F 0.45 | 94.1%, 3.13–3.34 |
 
   **None of the loss or model changes beats plain log-loss LightGBM.** The metric-aligned weights (M-v17) lose 0.0003:
   bending the loss toward the metric double-counts what the expected-F rule already does with calibrated
   probabilities. The neural net (M-v13) trails by 0.0029 even with 200× the smoke run's data (stage 1 stopped at
   val log loss 0.041; LightGBM's trees handle these thresholded, heavy-tailed features better). Averaging it in
   (M-v14) costs 0.0007, so its errors are not different enough to help.
+  CatBoost (M-v15) trails by 0.0004. Its stage-1 folds hit the 3,000-tree cap at lr 0.1 (7 min each, 30 min for the
+  run against LightGBM's 10). Averaged with LightGBM (M-v16) it ties M-v11 to four decimals (P +0.0001, R −0.0003),
+  and the three-model mean (M-v18) is lower. **Conclusion: M-v11 (plain log-loss LightGBM) is the final model.** A
+  tie is no reason to ship a heavier two-model pipeline. On this data the model family and the loss are no longer the
+  bottleneck: the eval slice's perfect-matcher ceiling is 0.9945, and the remaining loss is recall on links whose
+  evidence is missing (invented names, replaced house numbers, no address).
   M-v12 trades 0.0021 recall for 0.0007 precision and protects singletons (+0.0039), but ties M-v11 on the doubled-
   distractor eval, which is where it should have won. M-v11 stays first. CatBoost failed on the first attempt: the
   runner's uv environment has no pip, so chain6's install step did nothing. catboost 1.2.10 was installed with uv at

@@ -65,7 +65,7 @@ End-to-end presets (`--list` prints them all; the default stays M-v3, the first 
 | M-v8 / M-v9 | M-v7 with XGBoost (MATCH-v8) / a LightGBM + XGBoost blend (MATCH-v9) | built on M-v7's features, not run |
 | M-v10 | M-v6 with distractor rows weighted ×2 and the rule chosen on the doubled-distractor eval (MATCH-v10) | running |
 | **M-v11** | M-v6 on the filtered candidates (BLK-v5-tlu40: 6.5 per S1 instead of 48.1) | eval 0.9854; next submission |
-| M-v12 to M-v18 | on M-v11's candidates: distractors ×2 (MATCH-v10), neural network (v13), CatBoost (v15), metric-aligned loss (v17), blends (v14, v16, v18) | running |
+| M-v12 to M-v18 | on M-v11's candidates: distractors ×2 (MATCH-v10), neural network (v13), CatBoost (v15), metric-aligned loss (v17), blends (v14, v16, v18) | eval 0.9825–0.9854: none beats M-v11 |
 
 ```bash
 python run_pipeline.py --list                          # every version and preset

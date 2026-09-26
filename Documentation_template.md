@@ -186,7 +186,10 @@ so every probability used downstream is out-of-sample. After the filter it train
     0.9851 (the decision rule already applies these costs, so the weights count them twice);
   - a feed-forward neural network (numpy, Adam, learning-rate decay, early stopping): 0.9825;
   - its average with LightGBM: 0.9847;
-  - CatBoost (Apache-2.0) and its average with LightGBM: [pending].
+  - CatBoost (Apache-2.0): 0.9850; averaged with LightGBM: 0.9854 (a tie, so the simpler single
+    model is kept); LightGBM + network + CatBoost: 0.9851.
+- The model family and the loss are therefore no longer the bottleneck. The remaining loss is
+  recall on links whose evidence is missing (invented names, replaced house numbers, no address).
 
 **Threshold selection method:** each target is kept only for the Source 1 entity that scores it
 highest (exclusive assignment); then a rule chosen on held-out training entities by macro F0.5:

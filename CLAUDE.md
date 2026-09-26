@@ -238,7 +238,10 @@ the shared eval slice.
   runner's venv is a **uv venv without pip** (install with `/usr/local/bin/uv pip install --python /opt/mlc26/venv/bin/python
   <pkg> numpy==2.4.6 scipy==1.17.1`). catboost 1.2.10 was installed that way; **chain7** waits for `CHAIN6_DONE`, then
   reruns M-v15, M-v16, M-v18 and touches `CHAIN7_DONE`. M-v11 (eval 0.9854, 6.5 candidates per S1) is in
-  `output/runs/NORM-v2__BLK-v5-tlu40__FEAT-v4__MATCH-v6/` (md5 `f96f52d7…`), the recommended upload. Kaggle GPU sessions have the same ~29 GB RAM as CPU ones: no full run fits. Read-only SSM commands (tail logs) work. SageMaker:
+  `output/runs/NORM-v2__BLK-v5-tlu40__FEAT-v4__MATCH-v6/` (md5 `f96f52d7…`), the recommended upload.
+  **chain7 done 18:25 IST; every experiment finished.** Full-data eval F0.5 on the filtered candidates: M-v11 0.9854,
+  M-v12 0.9852, M-v13 (net) 0.9825, M-v14 0.9847, M-v15 (CatBoost) 0.9850, M-v16 (LGB+Cat) 0.9854 (tie), M-v17
+  (metric-aligned loss) 0.9851, M-v18 0.9851. **M-v11 is the final model.** The runner is idle and stops itself. Kaggle GPU sessions have the same ~29 GB RAM as CPU ones: no full run fits. Read-only SSM commands (tail logs) work. SageMaker:
   every large-instance quota is 0; ml.m5.4xlarge training/spot requests are CASE_OPENED. Kaggle CPU sessions (30 GB)
   cannot hold a full run: M-v6 there was killed in train blocking after prep peaked at 23.8 GB.
   Then `infra/aws/ec2/launch_runner.sh <PRESET>` (or the same
