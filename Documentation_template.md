@@ -218,7 +218,7 @@ evaluation links, and evaluation rows are scored exactly like test rows.
 ## 5. Results & Error Analysis
 
 - **F_0.5 Score (macro):** **0.9854** on the test-like evaluation slice (441,521 entities;
-  precision 0.9962, recall 0.9639; India 0.9817, US 0.9879); public leaderboard [pending].
+  precision 0.9962, recall 0.9639; India 0.9817, US 0.9879); **public leaderboard 0.970**.
   On the test set it links 94.0% of Source 1 records with 3.1–3.3 links each (evaluation truth:
   94.4% and 3.46). For reference:
   - The first full run (M-v3, full-train universe) scored 0.9813 on the evaluation slice
@@ -252,7 +252,7 @@ evaluation links, and evaluation rows are scored exactly like test rows.
 | M-v5 | public leaderboard | 0.971 | | |
 | M-v6: + distinctive-part features | test-like evaluation slice | 0.9856 | 0.9960 | 0.9647 |
 | **M-v11: M-v6 + learned candidate filter (6.5 candidates per record, not 48.1)** | test-like evaluation slice | **0.9854** | 0.9962 | 0.9639 |
-| M-v11 | public leaderboard | [pending] | | |
+| M-v11 | public leaderboard | **0.970** | | |
 
 ---
 
@@ -272,7 +272,8 @@ The organisers' emphasis on small candidate sets added a third lesson. The searc
 find hard links, but the matcher does not need to see that depth. A cheap learned filter on the
 search's own scores cut the candidate set 7.4-fold at a cost of 0.0002 F0.5.
 
-Final submission: M-v11, test-like evaluation F0.5 0.9854, public leaderboard [pending].
+Final submission: M-v11, test-like evaluation F0.5 0.9854, public leaderboard 0.970. It scores the same as M-v5
+(0.971) within rounding, with a candidate set 7.4 times smaller.
 
 ---
 

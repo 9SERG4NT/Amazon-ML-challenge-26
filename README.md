@@ -38,7 +38,7 @@ normalise ──> block ──> features ──> LightGBM stage 1 ──> stage 
 | M-v5: test-like universe, number-gap features, 75% of entities fitted | test-like | 0.9852 | 0.9957 | 0.9644 | **0.971** |
 | M-v6: M-v5 + France-robust features (FEAT-v4) | test-like | **0.9856** | 0.9960 | 0.9647 | pending |
 | M-v7: every distractor copied | copies | 0.9856 | 0.9978 | 0.9599 | rejected |
-| **M-v11: M-v6 behind a learned candidate filter (6.5 candidates per S1 instead of 48)** | test-like | 0.9854 | 0.9962 | 0.9639 | next upload |
+| **M-v11: M-v6 behind a learned candidate filter (6.5 candidates per S1 instead of 48)** | test-like | 0.9854 | 0.9962 | 0.9639 | **0.970** (submitted) |
 | M-v12 to M-v18: distractor weights ×2, a metric-aligned loss, a neural network (Adam), CatBoost, blends (all on M-v11's candidates) | test-like | 0.9825–0.9854 | | | none beats M-v11 |
 
 Rows with different eval data are not comparable. What the leaderboard taught us:

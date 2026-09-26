@@ -4,9 +4,10 @@
 file uploaded to the leaderboard, and the two files `make_submission.py` packs. They must keep
 these exact names.
 
-**Current submission: M-v5** (`NORM-v2__BLK-v4b@20-tlu40__FEAT-v3__MATCH-v6`): trained and
-validated in the test-like universe, stage-2 probabilities with the gated expected-F rule (gate
-0.55). It replaced FULL-v1 (kept in `runs/`) and raised the public leaderboard from 0.96 to 0.971.
+**Current submission: M-v11** (`NORM-v2__BLK-v5-tlu40__FEAT-v4__MATCH-v6`, public leaderboard **0.970**): M-v6 behind
+the learned candidate filter, **6.5 candidates per S1 instead of 48.1**, stage-2 probabilities with the expected-F rule
+(floor 0.4). It replaced M-v5 (0.971, kept in `runs/`): the same leaderboard score within rounding, with a candidate set
+7.4 times smaller, which the organisers rank higher in the final review.
 
 Every complete run keeps its own copy in `runs/<version key>/`, named like its S3 folder
 `s3://amazon-ml-challenge-26-sagemaker-125650147728/predictions/<version key>/`. The TSVs are not
@@ -15,9 +16,9 @@ in git: `*.tsv` is ignored outside the top of this folder, and `candidate_pairs.
 | Run (preset) | Version key (folder name) | Eval universe | Eval F0.5 | Public leaderboard | md5 of `matching_results.tsv` |
 |---|---|---|---:|---:|---|
 | FULL-v1 (M-v3) | `NORM-v2__BLK-v4b@20__FEAT-v2__MATCH-v2` | full train | 0.9813 | 0.96 | `b4644450c78b5bf64f8124223223a005` |
-| **M-v5** | `NORM-v2__BLK-v4b@20-tlu40__FEAT-v3__MATCH-v6` | test-like | 0.9852 | **0.971** | `9c66b92887f0eced0291bc42f78d8b2f` |
+| M-v5 | `NORM-v2__BLK-v4b@20-tlu40__FEAT-v3__MATCH-v6` | test-like | 0.9852 | 0.971 | `9c66b92887f0eced0291bc42f78d8b2f` |
 | M-v6 (Kaggle TPU run) | `NORM-v2__BLK-v4b@20-tlu40__FEAT-v4__MATCH-v6` | test-like | 0.9856 | pending | `f055edc3edaeb41e0204d35dae4be8e9` |
-| **M-v11** (EC2) | `NORM-v2__BLK-v5-tlu40__FEAT-v4__MATCH-v6` | test-like | 0.9854 | pending | `f96f52d773991cc04870a36cf4b3ed46` |
+| **M-v11** (EC2, current) | `NORM-v2__BLK-v5-tlu40__FEAT-v4__MATCH-v6` | test-like | 0.9854 | **0.970** | `f96f52d773991cc04870a36cf4b3ed46` |
 | M-v7 (rejected, not downloaded) | `NORM-v2__BLK-v4b@20-dup2__FEAT-v4__MATCH-v6` | doubled distractors (copies) | 0.9856 | not submitted | — |
 
 M-v6 changes the M-v5 link set for 6.9% of French S1 (India 3.6%, US 3.4%), as its France-robust features intend;
@@ -26,7 +27,7 @@ distractor, and the model learned to recognise the exact twins, so on the test (
 4.20 links each (truth ~94%, ~3.4). Its files stay in S3 only
 (`s3://amazon-ml-challenge-26-278311879294/predictions/NORM-v2__BLK-v4b@20-dup2__FEAT-v4__MATCH-v6/`).
 
-**M-v11 is the recommended upload.** It is M-v6 behind the learned candidate filter (BLK-v5-tlu40): **6.5 candidates per
+**M-v11 (submitted, 0.970).** It is M-v6 behind the learned candidate filter (BLK-v5-tlu40): **6.5 candidates per
 S1 instead of 48.1** (the organisers rank a smaller candidate set higher), eval F0.5 0.9854 against M-v6's 0.9856, the
 same test profile (94.0% of S1 linked, 3.13–3.31 links each) and a passing validator. `candidate_pairs.tsv` is 167 MB
 (md5 `64f560335280ca4965118ec0d78c0d54`) instead of ~1.1 GB.

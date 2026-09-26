@@ -56,7 +56,8 @@ then `python make_submission.py --team "<name>"` (repo root) validates them and 
 `<team>_submission.zip` in the required layout. The user wants the best complete run's TSVs kept in
 the local `output/` for leaderboard uploads: download them after every full run that beats the
 current best (presigned GET + curl), and check the md5 against the runner. `output/` now holds
-**M-v5** (test-like eval 0.9852, **public leaderboard 0.971**, rank ~400; md5 `9c66b928…`). The remaining gap is most likely France (implied ~0.89): next is M-v6 (FEAT-v4). Before it came FULL-v1
+**M-v11** (filtered candidates, 6.5 per S1; test-like eval 0.9854, **public leaderboard 0.970**; md5 `f96f52d7…`),
+which replaced M-v5 (eval 0.9852, LB 0.971, md5 `9c66b928…`, kept in `output/runs/`). The remaining gap is most likely France (implied ~0.89): next is M-v6 (FEAT-v4). Before it came FULL-v1
 (`predictions/M-v3/`, eval F0.5 0.9813, **public leaderboard 0.96**; top of the board 0.99),
 which is kept in `output/runs/`.
 Output naming: `output/matching_results.tsv` and `output/candidate_pairs.tsv` are the current submission
