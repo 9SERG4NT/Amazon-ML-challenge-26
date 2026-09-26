@@ -156,6 +156,10 @@ MATCH = _index(
                              "retraining to another universe's train split: how the leaderboard model scores in a "
                              "test-like universe. Picks its 52 columns by name, so FEAT-v3 parts (a superset) work",
           frozen_from="BLK-v4b@20__FEAT-v2__MATCH-v2"),
+    Match("MATCH-v6-frozen-tlu", "the fold models of M-v6 (tlu40 universe, FEAT-v4, MATCH-v6) applied without retraining "
+                                 "to another universe's train split: M-v6 on M-v7's doubled-distractor eval slice, to "
+                                 "compare the two universes' models on one scale and with M-v6's leaderboard score",
+          lgb=(("learning_rate", 0.1),), fit_rest=True, frozen_from="BLK-v4b@20-tlu40__FEAT-v4__MATCH-v6"),
 )
 
 PRESETS = {
