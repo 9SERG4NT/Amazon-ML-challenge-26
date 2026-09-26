@@ -99,6 +99,7 @@ Unless noted, the scores are on the DEV-10 **evaluation slice**: 20% of the DEV-
 | **FULL-v1** (M-v3) | 2026-09-25 | M-v3 on the **full** data: fit 30% of train S1, scored on the full-density eval slice (441,521 S1); exclusive, gated expected-F (gate 0.5) | 98.32% | 47.5 | **0.9813** | 0.9952 | 0.9544 | 0.9774 / 0.9815 | **0.96** (public) | Perfect matcher on these candidates: 0.9947. India 0.9778, US 0.9837. Top of the public leaderboard: 0.99. The 0.02 gap to eval is a train/test shift (see "Leaderboard gap" below) |
 | **M-v5** | 2026-09-26 | Test-like universe (BLK-v4b@20-tlu40) + FEAT-v3 (number gap) + MATCH-v6 (75% fitted, lr 0.1); gated expected-F (gate 0.55). **Test-like eval slice**, not comparable with the full-universe rows | 98.69% | 47.8 | **0.9852** | 0.9957 | 0.9644 | 0.9808 / 0.9854 | **0.971** (public, rank ~400) | Perfect matcher on these candidates: 0.9959. India 0.9818, US 0.9875. `num_x_edit` carries 10.9% of the stage-1 gain |
 | **M-v6** | 2026-09-26 | M-v5 with FEAT-v4 (distinctive-part features); gated expected-F (gate 0.5). Test-like eval slice | 98.69% | 47.8 | **0.9856** | 0.9960 | 0.9647 | 0.9812 / 0.9859 | pending | India 0.9822, US 0.9878. Changes 6.9% of French S1's link sets (US/India 3.4–3.6%). Kaggle TPU run |
+| **M-v11** | 2026-09-26 | M-v6 behind the learned candidate filter (BLK-v5-tlu40): 6.5 candidates per test S1 instead of 48.1; expected-F (0.4). Test-like eval slice | 98.21% | 6.0 | **0.9854** | 0.9962 | 0.9639 | 0.9816 / 0.9856 | pending | Doubled-distractor 0.9845. India 0.9817, US 0.9879. Test profile as M-v6's. EC2 |
 | M-v7 | 2026-09-26 | Full universe with every distractor copied (BLK-v4b@20-dup2) + FEAT-v4 + MATCH-v6 | 98.17% | 47.5 | 0.9856 | 0.9978 | 0.9599 | 0.9924 / 0.9852 | not submitted | **Rejected:** the model learned to spot the copies and over-links the test (98.5% of S1, 4.20 links each) |
 
 ---
@@ -212,8 +213,23 @@ Copy the template below for each run, newest entry first. Record every run, incl
   (share of found fit links kept: eval pair recall, candidates per S1): 0.98: 0.9787, 3.4; 0.99: 0.9889, 3.5; 0.995:
   0.9933, 3.7; 0.997: 0.9960, 4.0; 0.999: 0.9981, 5.6. The sample has ~10× less competition than the full data, so the
   full run decides.
-- **Full run:** running on the EC2 runner (chain5 from 16:00 IST): M-v11 = BLK-v5-tlu40 + FEAT-v4 + MATCH-v6, then
-  M-v12 = the same with MATCH-v10, then M-v10 and M-v6 on the unfiltered candidates for the comparison.
+- **Full run (M-v11 = BLK-v5-tlu40 + FEAT-v4 + MATCH-v6, EC2, 15:58–17:00 IST).** Filter folds: 21M rows each, 1,000
+  trees (the cap; still improving), 3.4 min each; scoring all 138M search candidates took 34 min. Curve on the full
+  data (share of found fit links kept: eval pair recall, candidates per S1 train/test): 0.98: 96.74%, 4.5/5.3;
+  0.99: 97.73%, 5.2/5.7; **0.995: 98.21%, 6.0/6.5**; 0.997: 98.40%, 6.6/7.1; 0.999: 98.59%, 8.4/8.5 (search alone:
+  98.69%, 47.8/48.1). At 0.995: p50 6, p90 10, p99 14, max 40 candidates per test S1; 0.03% of test S1 have none.
+
+| Run | Candidates / S1 (test) | Pair recall (eval) | Perfect matcher | Eval F0.5 | P | R | Doubled-distractor | India | US | Test: S1 linked | Links / S1 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| M-v6 (search only) | 48.1 | 98.69% | 0.9959 | **0.9856** | 0.9960 | 0.9647 | — | 0.9822 | 0.9878 | 94.1% | 3.27 |
+| **M-v11 (filtered)** | **6.5** | 98.21% | 0.9945 | 0.9854 | 0.9962 | 0.9639 | 0.9845 | 0.9817 | 0.9879 | 94.0% | 3.13–3.31 |
+
+  **7.4× fewer candidates for −0.0002 F0.5.** The filter drops 0.48 points of pair recall, but the matcher had
+  found only a fraction of those links anyway (recall −0.0008), and precision rises by 0.0002. Chosen rule: stage 2,
+  expected-F (floor 0.4). The matcher also gets cheaper: 4.2M training rows (56.8% positive) instead of ~25M, stage-1
+  folds in 45 s, train + predict in 11 min. Test: 5,664,142 links (M-v6: 5,672,242), validator passes, md5
+  `f96f52d7…` (matching) / `64f56033…` (candidates, 167 MB instead of ~1.1 GB). **M-v11 replaces M-v6 as the next
+  upload**; the remaining experiments (M-v12 to M-v18) run on its candidates and features.
 
 ### M-v6 and M-v7 on full data — copied distractors teach the model to spot copies (M-v10 instead)
 
