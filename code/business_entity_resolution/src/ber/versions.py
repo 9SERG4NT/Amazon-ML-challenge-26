@@ -87,6 +87,8 @@ class Match:
     distractor_weight: float = 1.0  # training weight of rows whose target is a distractor (no train S1 links to it)
     eval_dup: bool = False          # choose the rule on the doubled-distractor eval (links to distractors count
                                     # twice: the test's lookalike density) instead of the plain eval slice
+    covshift: bool = False          # covariate-shift weights toward the unseen country (France, or the held-out
+                                    # country of a leave-out run): a domain classifier's odds that a row is from there
     monotone_min_corr: float = 0.0  # LightGBM monotone constraints for features whose correlation with the label (on
                                     # the fit rows) is at least this in size, in that direction; 0 = none
     self_train: tuple = ()          # (hi, lo): self-training for countries without training links (France): the first
@@ -238,6 +240,14 @@ MATCH = _index(
     Match("MATCH-v20", "MATCH-v6 + self-training on France (the test country without training links): its confident "
                        "candidates are pseudo-labelled as in MATCH-v20-us and both stages retrained; French test entities "
                        "are scored out-of-fold", lgb=(("learning_rate", 0.1),), fit_rest=True, self_train=(0.9, 0.1)),
+    Match("MATCH-v22-us", "covariate-shift weighting checked on a stand-in unseen country: fitted on US only, each US row "
+                          "weighted by a domain classifier's odds that it looks like an Indian row (features only, no Indian "
+                          "labels); India scored as unseen (MATCH-v19-us: India 0.9444)",
+          lgb=(("learning_rate", 0.1),), fit_rest=True, train_countries=("US",), covshift=True),
+    Match("MATCH-v22-in", "the mirror of MATCH-v22-us: fitted on India only with weights toward the US",
+          lgb=(("learning_rate", 0.1),), fit_rest=True, train_countries=("India",), covshift=True),
+    Match("MATCH-v22", "MATCH-v6 with covariate-shift weights toward France: training rows that look like French test rows "
+                       "count more", lgb=(("learning_rate", 0.1),), fit_rest=True, covshift=True),
 )
 
 PRESETS = {
@@ -273,6 +283,10 @@ PRESETS = {
     "M-v20": ("NORM-v2", "BLK-v5-tlu40", "FEAT-v4", "MATCH-v20"),
     # the French house-number fix (FEAT-v5) with M-v11's matcher
     "M-v21": ("NORM-v2", "BLK-v5-tlu40", "FEAT-v5", "MATCH-v6"),
+    # covariate-shift weighting toward the unseen country: checked both ways (M-v22-us, M-v22-in), applied to France (M-v22)
+    "M-v22-us": ("NORM-v2", "BLK-v5-tlu40", "FEAT-v4", "MATCH-v22-us"),
+    "M-v22-in": ("NORM-v2", "BLK-v5-tlu40", "FEAT-v4", "MATCH-v22-in"),
+    "M-v22": ("NORM-v2", "BLK-v5-tlu40", "FEAT-v4", "MATCH-v22"),
 }
 DEFAULT_PRESET = "M-v3"
 

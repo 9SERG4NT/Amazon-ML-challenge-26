@@ -673,6 +673,9 @@ def stage_train(a, rv: V.RunVersions, P: Paths) -> dict:
         w = cost if w is None else w * cost
         log(f"entity weights: positives {cost[y == 1].mean():.3f}, negatives {cost[y == 0].mean():.3f} (mean 1)")
 
+    if mv.covshift:  # training rows that look like the unseen country count more (stage 2 reuses the same rows)
+        cw = _covshift_weights(a, mv, P, X, cols, tr_parts, te_parts)
+        w = cw if w is None else w * cw
     s1 = _cross_fit(X, y, q, role, fold, cols, mv, "stage1", P, w)
     del X  # stage 2 re-reads its rows, so the two matrices are never held together
     p1_tr = _predict_parts(s1, tr_parts, cols, role, fold, margin=mv.pred_margin)
@@ -725,6 +728,53 @@ def _load_selected(parts: list[Path], sel: np.ndarray, cols: list[str], extra: n
             out.append(X)
         off += df.height
     return np.vstack(out)
+
+
+def _covshift_weights(a, mv: V.Match, P: Paths, X: np.ndarray, cols: list[str], tr_parts: list[Path],
+                      te_parts: list[Path]) -> np.ndarray:
+    """Covariate-shift weights toward the unseen country (France, or the held-out country of a leave-out run).
+
+    A domain classifier (LightGBM) learns to tell the training rows from the unseen country's rows on the stage-1
+    features; each training row then weighs p/(1-p): rows that look like the unseen country count more. The training
+    rows get 2-fold cross-predictions, so a row never scores itself. The weights are tempered (a weak classifier, the
+    square root of the odds, clipped to [0.1, 10] times the mean): the countries are almost separable, and raw odds put
+    all the weight on a few rows. Only the features are read from the unseen country, never a label.
+    """
+    country = lambda split: pl.read_parquet(P.prep / f"Q_{split}.parquet", columns=["country"])["country"].to_numpy()
+    c_tr = country("train")
+    if mv.train_countries:
+        parts, target_q = tr_parts, ~np.isin(c_tr, list(mv.train_countries))
+    else:
+        parts, target_q = te_parts, ~np.isin(country("test"), np.unique(c_tr))
+    rng = np.random.default_rng(a.seed + 9)
+    Xt = []
+    for p in parts:  # the unseen country's rows, subsampled to at most ~2M
+        df = pl.read_parquet(p, columns=["q_rid"] + cols)
+        m = target_q[df["q_rid"].to_numpy()]
+        if m.any():
+            Xt.append(df.filter(pl.Series(m)).select(cols).to_numpy().astype(np.float32))
+    Xt = np.vstack(Xt)
+    if len(Xt) > 2_000_000:
+        Xt = Xt[rng.choice(len(Xt), 2_000_000, replace=False)]
+    half = rng.integers(0, 2, len(X)).astype(bool)
+    p_src = np.empty(len(X), np.float32)
+    params = {"objective": "binary", "learning_rate": 0.1, "num_leaves": 15, "min_data_in_leaf": 2000,  # kept weak:
+              "feature_fraction": 0.8, "bagging_fraction": 0.5, "bagging_freq": 1, "verbose": -1, "seed": 42,  # the
+              "num_threads": 0}  # countries are almost separable, and sharp odds would put all weight on a few rows
+    t_half = rng.integers(0, 2, len(Xt)).astype(bool)
+    for h in (False, True):  # fit on one half of the training rows (and of the unseen rows), score the other half
+        Xd = np.vstack([X[half == h], Xt[t_half == h]])
+        yd = np.concatenate([np.zeros(int((half == h).sum()), np.int8), np.ones(int((t_half == h).sum()), np.int8)])
+        b = lgb.train(params, lgb.Dataset(Xd, label=yd, feature_name=cols), 50)
+        p_src[half != h] = b.predict(X[half != h], num_threads=0)
+    ratio = (half.sum() / max(t_half.sum(), 1))  # the class balance each half's classifier saw
+    w = np.sqrt(p_src / np.clip(1 - p_src, 1e-6, None) * ratio)  # tempered (square root of the density ratio)
+    w = np.clip(w / w.mean(), 0.1, 10.0)
+    w = (w / w.mean()).astype(np.float32)
+    ess = float(w.sum() ** 2 / (w ** 2).sum() / len(w))
+    log(f"covariate-shift weights toward {int(target_q.sum()):,} unseen-country S1 ({len(Xt):,} rows): "
+        f"p50 {np.median(w):.2f}, p90 {np.percentile(w, 90):.2f}, max {w.max():.1f}, effective sample {ess:.2f}")
+    return w
 
 
 def _self_train(a, mv: V.Match, P: Paths, role: np.ndarray, fold: np.ndarray, keep: np.ndarray, cols: list[str],
