@@ -431,6 +431,8 @@ def stage_features(a, rv: V.RunVersions, P: Paths) -> dict:
         if fv.distinct:  # each country's frequent tokens, learned from this split's own records
             for col, red in (("name_core", "name_red"), ("addr_n", "addr_red")):
                 frequent = frequent_tokens(Q, T, col)
+                if fv.keep_numbers:  # a house number identifies an address even where it is common (French '1'..'12')
+                    frequent = frequent.filter(~pl.col("tok").str.contains(r"^\d+[a-z]?$"))
                 Q, T = (Q.with_columns(distinctive(Q, col, frequent).alias(red)),
                         T.with_columns(distinctive(T, col, frequent).alias(red)))
                 out.setdefault("frequent_tokens", {}).setdefault(split, {})[col] = dict(
@@ -450,6 +452,9 @@ def stage_features(a, rv: V.RunVersions, P: Paths) -> dict:
             if fv.align:
                 cols.append(align_features(c, Q, T, idf))
             part = pl.concat(cols, how="horizontal")
+            if fv.twin_flag:  # the address vectors agree (common numbers dropped by the IDF cap) but the numbers do not
+                part = part.with_columns(((pl.col("cos_addr") >= 0.999) & (pl.col("num_jacc") == 0))
+                                         .cast(pl.Float32).alias("addr_twin_num_diff"))
             part.write_parquet(d / f"part-{i:04d}.parquet")
             width = part.width
             log(f"features {split} part {i}: rows {s:,}-{s + c.height:,}")

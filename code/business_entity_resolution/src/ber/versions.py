@@ -63,6 +63,8 @@ class Feat:
     number_gap: bool = False        # closest unmatched numbers: edit distance and numeric gap (3 features)
     distinct: bool = False          # similarity of the distinctive parts (each country's frequent tokens removed)
                                     # and how many targets share each core name (10 features)
+    keep_numbers: bool = False      # numbers are never "frequent" tokens: the distinctive parts keep house numbers
+    twin_flag: bool = False         # addr_twin_num_diff: identical address vector (cos_addr = 1) but disjoint house numbers
 
 
 @dataclass(frozen=True)
@@ -161,6 +163,12 @@ FEAT = _index(
                     "generic words), and how many targets share the S1's / target's core name. French test S1 are "
                     "often '<city> <generic word> <legal form>' and got ~3x the false links of US/India S1",
          number_gap=True, distinct=True),
+    Feat("FEAT-v5", "FEAT-v4 with house numbers kept in the distinctive parts, plus addr_twin_num_diff (66). Small French "
+                    "house numbers ('1'..'12') are each in over 1% of French addresses, so both the blocking IDF cap and the "
+                    "distinctive-part filter drop them: 19.3% of French test candidates have an identical address vector "
+                    "(cos_addr = 1) but a different house number (India 1.9%, US 0.006%), a combination the model barely "
+                    "saw in training (US: 189 rows) and reads as the same address",
+         number_gap=True, distinct=True, keep_numbers=True, twin_flag=True),
 )
 
 MATCH = _index(
@@ -263,6 +271,8 @@ PRESETS = {
     # self-training for the unseen country: checked on India (M-v20-us), applied to France (M-v20)
     "M-v20-us": ("NORM-v2", "BLK-v5-tlu40", "FEAT-v4", "MATCH-v20-us"),
     "M-v20": ("NORM-v2", "BLK-v5-tlu40", "FEAT-v4", "MATCH-v20"),
+    # the French house-number fix (FEAT-v5) with M-v11's matcher
+    "M-v21": ("NORM-v2", "BLK-v5-tlu40", "FEAT-v5", "MATCH-v6"),
 }
 DEFAULT_PRESET = "M-v3"
 
