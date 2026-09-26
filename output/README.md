@@ -18,7 +18,8 @@ in git: `*.tsv` is ignored outside the top of this folder, and `candidate_pairs.
 | **M-v5** | `NORM-v2__BLK-v4b@20-tlu40__FEAT-v3__MATCH-v6` | test-like | 0.9852 | **0.971** | `9c66b92887f0eced0291bc42f78d8b2f` |
 | M-v6 | `NORM-v2__BLK-v4b@20-tlu40__FEAT-v4__MATCH-v6` | test-like | queued | | |
 
-Eval scores are comparable only within one universe. The test-like universe (every eval S1 plus
-40% of the other train S1, ~2.3 distractors per S1 like the test set) is harder than the full-train
-one, so its scores are lower by construction. The eval slice is the same 441,521 S1 entities in
-both. Methods and full results: [`../method_result.md`](../method_result.md).
+Eval scores are comparable only within one universe. The test-like universe keeps every eval S1
+plus 40% of the other train S1, which gives ~2.3 distractors per S1 as in the test set. It differs
+from the full-train one in both directions: it has twice the distractors per S1, but half the rival
+S1 records, so blocking and exclusivity lose less. The eval slice is the same 441,521 S1 entities
+in both. Neither covers France. Methods and full results: [`../method_result.md`](../method_result.md).
