@@ -57,7 +57,10 @@ then `python make_submission.py --team "<name>"` (repo root) validates them and 
 the local `output/` for leaderboard uploads: download them after every full run that beats the
 current best (presigned GET + curl), and check the md5 against the runner. `output/` now holds
 **M-v11** (filtered candidates, 6.5 per S1; test-like eval 0.9854, **public leaderboard 0.970**; md5 `f96f52d7…`),
-which replaced M-v5 (eval 0.9852, LB 0.971, md5 `9c66b928…`, kept in `output/runs/`). The remaining gap is most likely France (implied ~0.89): next is M-v6 (FEAT-v4). Before it came FULL-v1
+which replaced M-v5 (eval 0.9852, LB 0.971, md5 `9c66b928…`, kept in `output/runs/`). The teammates' pipeline
+(TEAM-B-R5: e5 bi-encoder + FAISS blocking, XGBoost with a cross-encoder score; their own validation 0.9875, not
+comparable; 5.95 candidates per S1; leaderboard pending) is in `output/runs/TEAM-B-R5__e5-FAISS__XGBoost-CE/`, its CSV
+converted to TSV (md5 `67bdd7f8…`, validator PASS). The remaining gap is most likely France (implied ~0.89): next is M-v6 (FEAT-v4). Before it came FULL-v1
 (`predictions/M-v3/`, eval F0.5 0.9813, **public leaderboard 0.96**; top of the board 0.99),
 which is kept in `output/runs/`.
 Output naming: `output/matching_results.tsv` and `output/candidate_pairs.tsv` are the current submission
@@ -246,7 +249,9 @@ the shared eval slice.
   Evening (IST): chain8 = leave-one-country-out M-v19-us/in (an unseen country loses 0.024-0.037); chain10 = M-v20-us,
   M-v20 (self-training: +0.0014 only); chain11 = Optuna transfer search (stopped after 3 trials); chain12 = **M-v21**
   (FEAT-v5: French house numbers were dropped as frequent tokens; 19.3% of French candidates look like the same
-  address with a different number). Kaggle GPU sessions have the same ~29 GB RAM as CPU ones: no full run fits. Read-only SSM commands (tail logs) work. SageMaker:
+  address with a different number). chain15 = leave-one-country-out XGBoost (M-v23-us/in) and the LightGBM + XGBoost
+  blend (M-v24-us/in): no transfer gain (unseen-country mean 0.9537 / 0.9541 against LightGBM's 0.9540), then
+  MATCH-v3/v5/v2/v1/v4 on the filtered candidates, transfer_ablation, tune_lgb and M-v10. Kaggle GPU sessions have the same ~29 GB RAM as CPU ones: no full run fits. Read-only SSM commands (tail logs) work. SageMaker:
   every large-instance quota is 0; ml.m5.4xlarge training/spot requests are CASE_OPENED. Kaggle CPU sessions (30 GB)
   cannot hold a full run: M-v6 there was killed in train blocking after prep peaked at 23.8 GB.
   Then `infra/aws/ec2/launch_runner.sh <PRESET>` (or the same
@@ -256,7 +261,8 @@ the shared eval slice.
 - **Account 125650147728, region us-east-1.** A teammate's notes describe a different account
   (911797456769); its bucket is not accessible from here.
 - **Auth:** `aws login` (short-lived credentials, root user; root has no access keys; enabling root
-  MFA is recommended). Local boto3 needs `pip install "botocore[crt]"` for the login provider. In Claude Code,
+  MFA is recommended). A login lasts at most 12 hours; when it expires the aws-mcp tools fail with "Unknown tool". The
+  CLI is `C:\Program Files\Amazon\AWSCLIV2\aws.exe` (terminals opened before its install do not have it on PATH). Local boto3 needs `pip install "botocore[crt]"` for the login provider. In Claude Code,
   use the aws-mcp tools (its `run_script` sandbox blocks the `base64` module). In `call_boto3`,
   operation names are PascalCase (`SendCommand`, `GetCommandInvocation`); a script that runs
   longer than ~1 minute turns into a task polled with `get_tasks`, so keep scripts short and never

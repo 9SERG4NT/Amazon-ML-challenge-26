@@ -20,6 +20,13 @@ in git: `*.tsv` is ignored outside the top of this folder, and `candidate_pairs.
 | M-v6 (Kaggle TPU run) | `NORM-v2__BLK-v4b@20-tlu40__FEAT-v4__MATCH-v6` | test-like | 0.9856 | pending | `f055edc3edaeb41e0204d35dae4be8e9` |
 | **M-v11** (EC2, current) | `NORM-v2__BLK-v5-tlu40__FEAT-v4__MATCH-v6` | test-like | 0.9854 | **0.970** | `f96f52d773991cc04870a36cf4b3ed46` |
 | M-v7 (rejected, not downloaded) | `NORM-v2__BLK-v4b@20-dup2__FEAT-v4__MATCH-v6` | doubled distractors (copies) | 0.9856 | not submitted | — |
+| Team pipeline B, run R5 (Kaggle, teammates) | `TEAM-B-R5__e5-FAISS__XGBoost-CE` | their own 10% held out | 0.9875 (not comparable) | pending | `67bdd7f85c52d143128e40dff42418eb` |
+
+**TEAM-B-R5 (the teammates' pipeline, leaderboard pending).** A fine-tuned e5-small bi-encoder with FAISS search for
+blocking (5.95 candidates per test S1), then XGBoost with a cross-encoder score and expected-F selection. Its folder
+holds the predictions converted to TSV (the file to upload), the CSV as downloaded, the team's write-up
+(`all_approaches.md`) and a README comparing it with M-v11. It links more than M-v11 (France 3.17 against 3.13 links
+per S1) and agrees on only 64% of French S1 (84–86% elsewhere). Its `candidate_pairs.tsv` is not downloaded yet.
 
 M-v6 changes the M-v5 link set for 6.9% of French S1 (India 3.6%, US 3.4%), as its France-robust features intend;
 its test profile matches M-v5's (94.1% of S1 linked, 3.27 links per S1). **M-v7 is rejected:** its training copied every

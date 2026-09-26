@@ -101,6 +101,7 @@ Unless noted, the scores are on the DEV-10 **evaluation slice**: 20% of the DEV-
 | **M-v6** | 2026-09-26 | M-v5 with FEAT-v4 (distinctive-part features); gated expected-F (gate 0.5). Test-like eval slice | 98.69% | 47.8 | **0.9856** | 0.9960 | 0.9647 | 0.9812 / 0.9859 | pending | India 0.9822, US 0.9878. Changes 6.9% of French S1's link sets (US/India 3.4–3.6%). Kaggle TPU run |
 | **M-v11** | 2026-09-26 | M-v6 behind the learned candidate filter (BLK-v5-tlu40): 6.5 candidates per test S1 instead of 48.1; expected-F (0.4). Test-like eval slice | 98.21% | 6.0 | **0.9854** | 0.9962 | 0.9639 | 0.9816 / 0.9856 | **0.970** (public) | Doubled-distractor 0.9845. India 0.9817, US 0.9879. Test profile as M-v6's. EC2 |
 | M-v7 | 2026-09-26 | Full universe with every distractor copied (BLK-v4b@20-dup2) + FEAT-v4 + MATCH-v6 | 98.17% | 47.5 | 0.9856 | 0.9978 | 0.9599 | 0.9924 / 0.9852 | not submitted | **Rejected:** the model learned to spot the copies and over-links the test (98.5% of S1, 4.20 links each) |
+| TEAM-B-R5 (teammates) | 2026-09-26 | The team's second pipeline: fine-tuned e5-small bi-encoder + FAISS blocking, graph filter, XGBoost with a cross-encoder score, expected F0.5, French logit shift. **Their own validation** (10% of train S1 held out), not comparable with the rows above | 98.16% | 4.78 | 0.9875 | — | — | 0.9850 / 0.9876 | pending | 5.95 candidates per test S1. Links more than M-v11 (France 3.17 against 3.13 per S1). See section 5 |
 
 ---
 
@@ -143,6 +144,40 @@ Copy the template below for each run, newest entry first. Record every run, incl
 - Next step:
 -->
 
+### The team's second pipeline (bi-encoder + cross-encoder + XGBoost) against M-v11
+
+- **Date:** 2026-09-26, 21:05 IST. The teammates' final run R5 (design "B"), from the Kaggle notebook
+  `amazon-ml-er-02-match-submit-ce` (v5). Their write-up, the predictions and a comparison are kept locally in
+  `output/runs/TEAM-B-R5__e5-FAISS__XGBoost-CE/` (not in git: test predictions).
+- **Method (their write-up).**
+  - *Blocking:* a `multilingual-e5-small` bi-encoder (MIT, 118M parameters), fine-tuned contrastively on 2M (S1, match)
+    pairs with same-city batches, then on 1M mined hard-negative triplets. A FAISS IVF search per country gives each
+    S2/S3 record its 3 closest S1 and each S1 its 10 closest records. A per-country percentile cut-off and a
+    logistic-regression graph filter follow. Validation recall 98.16% at 4.78 candidates per S1 (test 5.95); ceiling 0.9946.
+  - *Matcher:* XGBoost on string similarities, per-country IDF overlap, graph and context features, a **cross-encoder
+    score (75% of the gain)**, competition margins and name-ambiguity counts.
+  - *Selection:* exclusive assignment, then per-entity expected F0.5.
+  - *France:* per-country IDF and percentiles, plus a logit shift (2.37) that equalises France's no-match share with
+    the US/India share (5.72%).
+- **Their validation:** 220,140 train S1 (10%) held out from every model: **0.9875** (R1 0.9812 → cross-encoder 0.9856 →
+  margins 0.9867 → name ambiguity 0.9871 → hard-negative encoder 0.9875). The held-out entities apparently stay in the
+  search, like our full-train universe (FULL-v1: 0.9813), not like the test-like one (M-v11: 0.9854). The numbers are
+  therefore not comparable, although 0.9875 against 0.9813 suggests a stronger matcher, most likely the cross-encoder.
+- **Test predictions against M-v11** (validator PASS for both, same 1,732,544 S1):
+
+| | France | India | US |
+|---|---:|---:|---:|
+| S1 linked, team / M-v11 | 94.3% / 93.9% | 94.3% / 94.0% | 94.3% / 94.1% |
+| Links per S1, team / M-v11 | 3.17 / 3.13 | 3.36 / 3.28 | 3.37 / 3.31 |
+| Estimated true links per S1 (label-free S3−S2 excess, ±0.1) | 3.31 | 3.47 | 3.41 |
+| S1 with identical link sets | **64.3%** | 83.6% | 85.6% |
+| Links only in team / only in M-v11 | 62,223 / 53,457 | 110,713 / 46,531 | 73,752 / 32,445 |
+
+  The team's run links more, closer to the estimated truth, so its recall is probably higher. The two agree least
+  on France. **Decision:** upload the team's TSV to the leaderboard (a milestone: a different pipeline). If it beats
+  0.970 it becomes the final package, whose candidate file (5.95 per S1) is also smaller than M-v11's (6.5); the
+  package then needs its own `candidate_pairs.tsv` and code.
+
 ### Different approaches (evening of 2026-09-26): structural rules, covariate shift, the unrun versions
 
 - **Brainstorm, ranked by expected gain and what fits tonight:**
@@ -174,7 +209,8 @@ Copy the template below for each run, newest entry first. Record every run, incl
   stopping). M-v10 runs exactly as registered (unfiltered). M-v8/M-v9 as registered would inherit M-v7's rejected
   copied universe, and M-v4 needs the full-train universe (worse on the leaderboard), so their matchers run on the
   current candidates instead. The frozen diagnostics (MATCH-v2-frozen, MATCH-v6-frozen-tlu) need fold models from the
-  suspended account and from the Kaggle session, so they are not run. Queue: chain14 on the runner.
+  suspended account and from the Kaggle session, so they are not run. Queue: chain14 on the runner, replaced after
+  M-v22 by chain15, which runs the blend transfer check (M-v23/M-v24) first.
 - **Results (full data, eval slice as always; unseen = the held-out country's eval):**
 
 | Run | What | Eval F0.5 | Doubled-distractor | Unseen country | Test: France linked, links / S1 |
@@ -185,11 +221,22 @@ Copy the template below for each run, newest entry first. Record every run, incl
 | M-v19-us → M-v22-us | + covariate-shift weights, US → India | US 0.9874 | | India **0.9404** (0.9444 without) | |
 | M-v19-in → M-v22-in | + covariate-shift weights, India → US | India 0.9807 | | US **0.9662** (0.9637 without) | |
 | M-v22 | + covariate-shift weights toward France | 0.9853 (US and India) | | — | 93.9%, 3.12 |
+| M-v23-us | XGBoost, US → India | US 0.9877 | | India **0.9408** (LightGBM 0.9444) | 94.6%, 3.29 |
+| M-v23-in | XGBoost, India → US | India 0.9815 | | US **0.9666** (LightGBM 0.9637) | 93.8%, 3.10 |
+| M-v24-us | LightGBM + XGBoost, US → India | US 0.9878 | | India **0.9430** | 94.6%, 3.28 |
+| M-v24-in | LightGBM + XGBoost, India → US | India 0.9817 | | US **0.9651** | 94.0%, 3.10 |
+| MATCH-v3 on BLK-v5 | support features (MATCH-v2: fit 30%, lr 0.05) | 0.9850 | 0.9840 | — | 94.1%, 3.16 |
 
   Covariate-shift weighting helps one direction (+0.0025) and hurts the other (−0.0040): not reliable, not used. XGBoost
   and the LightGBM + XGBoost blend tie M-v11 on the eval. Since the eval is saturated (more than a dozen variants at
-  0.9854 ± 0.0003), the next check is whether the blend *transfers* better to an unseen country: M-v23 (XGBoost fitted
-  on one country) and M-v24 (its blend with M-v19's LightGBM), both ways (chain15).
+  0.9854 ± 0.0003), the next check was whether the blend *transfers* better to an unseen country: M-v23 (XGBoost fitted
+  on one country) and M-v24 (its blend with M-v19's LightGBM), both ways (chain15, done 21:18 IST).
+- **The blend does not transfer better.** Averaged over both directions, the unseen country scores 0.9540 with LightGBM,
+  0.9537 with XGBoost and 0.9541 with the blend. XGBoost loses 0.0036 from US to India and gains 0.0030 from India to
+  US: the same see-saw as the covariate-shift weights. The direction depends on the pair of countries, so no model
+  family is a safer bet for France. In-country scores tie as well (US 0.9877–0.9878, India 0.9815–0.9817).
+  **M-v11 stays the submission.** MATCH-v3's support features do not make up for fitting on 30% of the entities
+  instead of 75% (0.9850 against 0.9854).
 
 ### The unseen country — leave-one-country-out (M-v19) and self-training (M-v20)
 
