@@ -201,8 +201,12 @@ Copy the template below for each run, newest entry first. Record every run, incl
   estimate of the truth is 3.31). India 94.0%, 3.29; US 94.2%, 3.38. The validator passes, and the candidate file is
   M-v11's. Files: `output/runs/NORM-v2__BLK-v5-tlu40__FEAT-v6__MATCH-v6/` (md5 `6457acf2…`).
 - **Kaggle run 3** (texts prepared in their own process, training tokenised per batch, scores saved chunk by chunk
-  under /kaggle/working) started at 03:36 IST. Run 2 had lost one worker to memory while training. Its surviving
-  worker trained the best text model so far: held-out log loss 0.0452 (98.25%) on 1.2M pairs.
+  under /kaggle/working) ran 03:36–05:03 IST without trouble. Run 2 had lost one worker to memory while training;
+  its surviving worker had reached held-out log loss 0.0452 (98.25%) on 1.2M pairs. Run 3 scored all 18.07M
+  pairs, and on the 2.65M eval pairs **ce2 reaches log loss 0.0472, accuracy 98.24%** (ce1: 0.0612, 97.76%). The
+  scores went Kaggle → laptop → S3 (`experiments/ce/NORM-v2__BLK-v5-tlu40/ce2_*.parquet`, md5 train `e702a55e…`,
+  test `d53f51d8…`). The runner had stopped itself while idle; it was restarted, and chain19 runs M-v26 (ce2),
+  M-v27 (ce2 + its competition context) and M-v28 (FEAT-v9: ce1 + ce2 + context).
 
 ### Our stage 2 on top of the team's pipeline (`experiments/stack_stage2.py`)
 
