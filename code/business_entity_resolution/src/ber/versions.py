@@ -248,6 +248,16 @@ MATCH = _index(
           lgb=(("learning_rate", 0.1),), fit_rest=True, train_countries=("India",), covshift=True),
     Match("MATCH-v22", "MATCH-v6 with covariate-shift weights toward France: training rows that look like French test rows "
                        "count more", lgb=(("learning_rate", 0.1),), fit_rest=True, covshift=True),
+    Match("MATCH-v23-us", "leave-one-country-out for the model-family blend: MATCH-v8 (XGBoost) fitted on US only, rule "
+                          "chosen on US eval entities, India scored as unseen", lgb=(("eta", 0.1),), fit_rest=True,
+          algo="xgb", train_countries=("US",)),
+    Match("MATCH-v23-in", "MATCH-v23-us the other way: XGBoost fitted on India only, the US scored as unseen",
+          lgb=(("eta", 0.1),), fit_rest=True, algo="xgb", train_countries=("India",)),
+    Match("MATCH-v24-us", "mean of LightGBM (MATCH-v19-us) and XGBoost (MATCH-v23-us), both fitted on US only, rule chosen on "
+                          "US eval entities: does the blend transfer better to an unseen country (India) than LightGBM "
+                          "alone?", fit_rest=True, train_countries=("US",), blend_of=("MATCH-v19-us", "MATCH-v23-us")),
+    Match("MATCH-v24-in", "MATCH-v24-us the other way (fitted on India, the US unseen)", fit_rest=True,
+          train_countries=("India",), blend_of=("MATCH-v19-in", "MATCH-v23-in")),
 )
 
 PRESETS = {
@@ -287,6 +297,11 @@ PRESETS = {
     "M-v22-us": ("NORM-v2", "BLK-v5-tlu40", "FEAT-v4", "MATCH-v22-us"),
     "M-v22-in": ("NORM-v2", "BLK-v5-tlu40", "FEAT-v4", "MATCH-v22-in"),
     "M-v22": ("NORM-v2", "BLK-v5-tlu40", "FEAT-v4", "MATCH-v22"),
+    # does a LightGBM + XGBoost blend transfer better to an unseen country? (M-v9 is that blend on both countries)
+    "M-v23-us": ("NORM-v2", "BLK-v5-tlu40", "FEAT-v4", "MATCH-v23-us"),
+    "M-v23-in": ("NORM-v2", "BLK-v5-tlu40", "FEAT-v4", "MATCH-v23-in"),
+    "M-v24-us": ("NORM-v2", "BLK-v5-tlu40", "FEAT-v4", "MATCH-v24-us"),
+    "M-v24-in": ("NORM-v2", "BLK-v5-tlu40", "FEAT-v4", "MATCH-v24-in"),
 }
 DEFAULT_PRESET = "M-v3"
 
