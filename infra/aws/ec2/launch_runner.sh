@@ -57,7 +57,7 @@ echo "security group $SG"
 AMI=$(aws ssm get-parameter --name /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64 \
       --query Parameter.Value --output text)
 UD=infra/aws/ec2/.user_data.rendered.sh
-sed -e "s/^BUCKET=.*/BUCKET=$BUCKET/" -e "s/^PRESET=.*/PRESET=$PRESET/" infra/aws/ec2/user_data.sh > "$UD"
+sed -e "s/$//" -e "s/^BUCKET=.*/BUCKET=$BUCKET/" -e "s/^PRESET=.*/PRESET=$PRESET/" infra/aws/ec2/user_data.sh > "$UD"
 for attempt in 1 2 3 4 5 6; do  # a new instance profile takes a few seconds before EC2 accepts it
   if ID=$(aws ec2 run-instances --image-id "$AMI" --instance-type "$TYPE" \
         --iam-instance-profile Name=$ROLE --security-group-ids "$SG" \
