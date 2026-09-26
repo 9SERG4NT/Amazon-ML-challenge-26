@@ -143,6 +143,39 @@ Copy the template below for each run, newest entry first. Record every run, incl
 - Next step:
 -->
 
+### Different approaches (evening of 2026-09-26): structural rules, covariate shift, the unrun versions
+
+- **Brainstorm, ranked by expected gain and what fits tonight:**
+  1. Rules from how the data was built (decision level, no retraining).
+  2. Links through the entity's other records.
+  3. An acronym/initials blocking key (36% of missed links were never candidates).
+  4. A third stacking stage.
+  5. A transformer cross-encoder (MiniLM/E5, Apache/MIT; needs GPU hours).
+  6. An LLM judge for the uncertain pairs (needs GPU hours).
+  7. Domain adaptation toward the unseen country.
+- **Rules from how the data was built are true in train, but the model already uses them.** Targets without an address
+  are 97.7% linked (S2) and 97.7% (S3), against 72.5–73.8% for records with one. Web-style names are 96.2%, alias names
+  (S3) 100%, and addresses without a digit 97.4%: such records are almost never distractors. 85.2% of linked S1 have
+  matches in both sources. Simulated on M-v11's eval scores (baseline 0.9854):
+  - linking these targets to their best S1 when p2 ≥ 0.05 / 0.1 / 0.2 / 0.3 gives 0.9792 / 0.9809 / 0.9828 / 0.9836;
+  - adding the best other-source candidate for S1 linked in one source only gives 0.9811 / 0.9826 / 0.9841 / 0.9845.
+
+  p2 is calibrated for these targets (the 0.3–0.4 band is 38% true, the 0.4–0.5 band 47%): the flags are features
+  and the model already accounts for them. Not used.
+- **Covariate-shift weighting (MATCH-v22, `covshift`)**, a classic domain-adaptation method. A domain classifier
+  separates training rows from the unseen country's rows on the stage-1 features (features only, never labels, 2-fold
+  cross-predicted), and each training row is weighted by the odds that it looks like the unseen country. The raw odds
+  collapsed the effective sample to 3% (the countries are almost separable: Devanagari records, address lengths). The
+  weights are therefore tempered: a weak classifier (15 leaves, 50 trees), the square root of the odds, clipped to
+  [0.1, 10] times the mean, which gives an effective sample of 38%. Checked both ways (M-v22-us, M-v22-in against
+  M-v19-us/in), then applied to France (M-v22).
+- **The registered versions never run on full data run on M-v11's filtered candidates:** MATCH-v8 (XGBoost), MATCH-v9
+  (LightGBM + XGBoost), MATCH-v3 (support features), MATCH-v5, MATCH-v2, MATCH-v1 and MATCH-v4 (prediction early
+  stopping). M-v10 runs exactly as registered (unfiltered). M-v8/M-v9 as registered would inherit M-v7's rejected
+  copied universe, and M-v4 needs the full-train universe (worse on the leaderboard), so their matchers run on the
+  current candidates instead. The frozen diagnostics (MATCH-v2-frozen, MATCH-v6-frozen-tlu) need fold models from the
+  suspended account and from the Kaggle session, so they are not run. Queue: chain14 on the runner.
+
 ### The unseen country — leave-one-country-out (M-v19) and self-training (M-v20)
 
 - **Date:** 2026-09-26, after M-v11 scored **0.970** on the public leaderboard (M-v5: 0.971; eval 0.9854 and 0.9852).
