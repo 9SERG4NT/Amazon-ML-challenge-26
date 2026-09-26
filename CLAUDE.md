@@ -49,6 +49,11 @@ python -m experiments.dev_v3 <cache>                                 # FEAT-v3 n
 # full-data work dir: eval-loss breakdown with examples; train/test shift checks (leak, stats, preds)
 python -m experiments.full_errors <work> NORM-v2__BLK-v4b@20__FEAT-v2__MATCH-v2 p2 gated_ef 0.5 12
 python -m experiments.shift_check <work> leak,stats,preds <dataset_dir>
+# cross-encoder pair score as a feature (FEAT-v6..v8): export M-v11's pairs, train two halves, score cross-fitted
+python -m experiments.cross_encoder export <work> NORM-v2__BLK-v5-tlu40      # -> <work>/ce/<key>/{train,test,ids_*}.parquet
+python -m experiments.cross_encoder run <work> NORM-v2__BLK-v5-tlu40 --name ce1   # -> <work>/extra/<key>/ce1_*.parquet
+# GPU version on Kaggle (2x T4, multilingual-e5-small, raw texts): infra/kaggle/ce, reads the private dataset
+# serg4nt/mlc26-ce-pairs (the ids_* files, uploaded by the user) and writes ce2_{train,test}.parquet
 # our stage 2 on any first-stage scorer's pairs (built for the team's run; standalone: numpy, polars, lightgbm)
 python experiments/stack_stage2.py --val val_scored.parquet --test test_scored.parquet \
   --truth <dataset>/train/train_ground_truth.tsv --s1 <dataset>/test/test_source1.tsv --out <dir> [--france-shift auto]
@@ -254,7 +259,11 @@ the shared eval slice.
   (FEAT-v5: French house numbers were dropped as frequent tokens; 19.3% of French candidates look like the same
   address with a different number). chain15 = leave-one-country-out XGBoost (M-v23-us/in) and the LightGBM + XGBoost
   blend (M-v24-us/in): no transfer gain (unseen-country mean 0.9537 / 0.9541 against LightGBM's 0.9540), then
-  MATCH-v3/v5/v2/v1/v4 on the filtered candidates, transfer_ablation, tune_lgb and M-v10. Kaggle GPU sessions have the same ~29 GB RAM as CPU ones: no full run fits. Read-only SSM commands (tail logs) work. SageMaker:
+  MATCH-v3/v5/v2/v1/v4 on the filtered candidates, transfer_ablation, tune_lgb and M-v10; the user stopped it before
+  M-v10 (22:37 IST). chain16 waits for `CHAIN15_STOPPED` and for `ce2_{train,test}.parquet` under
+  `s3://…/experiments/ce/NORM-v2__BLK-v5-tlu40/` (the Kaggle cross-encoder scores, uploaded from the laptop), copies
+  them to `runs/full/extra/NORM-v2__BLK-v5-tlu40/` and runs M-v26 (features,train,predict); chain17 then runs M-v27.
+  All heavy processing runs on Kaggle and EC2, not the laptop (the user's wish). Kaggle GPU sessions have the same ~29 GB RAM as CPU ones: no full run fits. Read-only SSM commands (tail logs) work. SageMaker:
   every large-instance quota is 0; ml.m5.4xlarge training/spot requests are CASE_OPENED. Kaggle CPU sessions (30 GB)
   cannot hold a full run: M-v6 there was killed in train blocking after prep peaked at 23.8 GB.
   Then `infra/aws/ec2/launch_runner.sh <PRESET>` (or the same
