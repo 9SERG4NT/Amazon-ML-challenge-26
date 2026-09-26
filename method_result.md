@@ -158,9 +158,14 @@ Copy the template below for each run, newest entry first. Record every run, incl
   validation for p and for p2 alike (threshold, expected F0.5, gated expected F0.5, with exclusive assignment). The
   output is written from p2 only if p2 wins on validation. `--france-shift auto` redoes the team's empty-share
   calibration on the stage-2 output. Checked on synthetic data (validator PASS).
-- **Check on our data (running):** M-v11's stage-1 p1 on its eval slice (441,521 S1), stage 2 trained only on those
-  held-out entities (3 folds), as the team would train it on their 220,140 validation entities. Also without the
-  per-target features, and our production p2 as the input for reference.
+- **Check on our data:** M-v11's stage-1 p1 on its eval slice (441,521 S1, 2.65M pairs), stage 2 trained only on those
+  held-out entities (3 folds), as the team would train it on their 220,140 validation entities. The per-target
+  features see only the eval S1 as rivals. Result: **0.9833 → 0.9842 (+0.0009)**. The best rule on p1 is gated 0.65
+  (P 0.9954, R 0.9596, singletons 0.9780); on the stacked p2 it is gated 0.55 (P 0.9957, R 0.9618, singletons 0.9837).
+  Our production stage 2 gains +0.0021 (0.9854). It trains on the fit entities (75% of train S1 instead of 20%), sees
+  every rival S1 and has all ~65 stage-1 features. The script takes the team's own features as extra columns, which
+  should recover part of that difference. Pending: without the per-target features, and our production p2 as the
+  input (reference).
 
 ### The team's second pipeline (bi-encoder + cross-encoder + XGBoost) against M-v11
 
