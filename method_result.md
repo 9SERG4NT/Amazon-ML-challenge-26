@@ -173,8 +173,18 @@ Copy the template below for each run, newest entry first. Record every run, incl
   pseudo-labelled fit rows. A candidate that is the best for its target with p2 ≥ 0.9 counts as a match; one with
   p2 ≤ 0.1 counts as a non-match. Both stages are then retrained, and the country's entities are scored
   out-of-fold, so no pseudo-label scores its own entity. M-v20-us checks it on India (fitted on US + India's
-  pseudo-labels, India's eval slice untouched by true labels), and M-v20 applies it to France. Results below when the
-  runs finish.
+  pseudo-labels, India's eval slice untouched by true labels), and M-v20 applies it to France.
+- **M-v20-us: self-training recovers almost nothing.** India unseen goes from 0.9444 to **0.9458** (+0.0014 of the
+  0.037 loss), with the US unchanged (0.9877). It had 1.45M pseudo-matches, 1.28M pseudo-non-matches and 0.23M rows left
+  out. The unseen model's errors are *confident* wrong links, which the pseudo-labels simply confirm. M-v20 (France) runs
+  for completeness but is not worth a leaderboard submission.
+- **Next: tune for transfer.** `experiments/tune_transfer.py` searches the stage-1 parameters with Optuna. Every trial
+  is trained on one country and scored by log loss on the other (US→India and India→US), never on the eval slice. The
+  space includes what should help an unseen country: data-driven monotone constraints (`model.monotone_signs`: features
+  whose correlation with the label is large keep that direction), extra-trees, path smoothing and stronger
+  regularisation. The winner is confirmed through the full two-stage pipeline in both directions before France gets
+  it. SageMaker Automatic Model Tuning would run the same kind of search, but the account's SageMaker training quota is
+  still 0 (requests pending since 09:28 IST), so it runs on the EC2 runner.
 
 ### Model families and loss functions, chosen from the data — M-v13 to M-v18
 
