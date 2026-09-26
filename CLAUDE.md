@@ -52,7 +52,7 @@ then `python make_submission.py --team "<name>"` (repo root) validates them and 
 `<team>_submission.zip` in the required layout. The user wants the best complete run's TSVs kept in
 the local `output/` for leaderboard uploads: download them after every full run that beats the
 current best (presigned GET + curl), and check the md5 against the runner. `output/` now holds
-**M-v5** (test-like eval 0.9852, leaderboard pending; md5 `9c66b928…`). Before it came FULL-v1
+**M-v5** (test-like eval 0.9852, **public leaderboard 0.971**, rank ~400; md5 `9c66b928…`). The remaining gap is most likely France (implied ~0.89): next is M-v6 (FEAT-v4). Before it came FULL-v1
 (`predictions/M-v3/`, eval F0.5 0.9813, **public leaderboard 0.96**; top of the board 0.99),
 which is kept in `output/runs/`.
 Output naming: `output/matching_results.tsv` and `output/candidate_pairs.tsv` are the current submission
@@ -207,6 +207,7 @@ the shared eval slice.
 
 ## AWS
 
+- **The AWS account was suspended on 2026-09-26 (~01:00 IST)**: the runner and S3 are unreachable. The fallback is a Kaggle notebook (`infra/kaggle/m-v6/`, TPU VM machine shape for its RAM), run on a private Kaggle dataset `serg4nt/mlc26-ber-data` that the user uploads. The permission classifier blocks Claude from uploading the challenge data.
 - **Account 125650147728, region us-east-1.** A teammate's notes describe a different account
   (911797456769); its bucket is not accessible from here.
 - **Auth:** `aws login` (short-lived credentials, root user; root has no access keys; enabling root
