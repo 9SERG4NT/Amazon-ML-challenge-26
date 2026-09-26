@@ -188,7 +188,17 @@ Copy the template below for each run, newest entry first. Record every run, incl
 | M-v18 | LightGBM + net + CatBoost | 0.9950 | 0.9944 |
 
   The net trails at 1% (about 16k rows per fold); on the full data it gets about 200 times more.
-- **Full data:** chain6 on the EC2 runner runs M-v12, M-v15, M-v16, M-v17, M-v13, M-v14 and M-v18 after M-v11.
+- **Full data** (EC2; same 441,521 eval S1; 6.5 candidates per test S1 for all):
+
+| Run | Model / loss | Eval F0.5 | Doubled-distractor | P | R | Singletons | Rule | Test: S1 linked, links / S1 |
+|---|---|---:|---:|---:|---:|---:|---|---|
+| **M-v11** | LightGBM, log loss | **0.9854** | **0.9845** | 0.9962 | 0.9639 | 0.9816 | p2 expected-F 0.4 | 94.0%, 3.13–3.31 |
+| M-v12 | LightGBM, distractors ×2 | 0.9852 | 0.9845 | 0.9969 | 0.9618 | 0.9855 | p2 expected-F 0.2 (chosen on the doubled eval) | 93.9%, 3.10–3.29 |
+
+  M-v12 trades 0.0021 recall for 0.0007 precision and protects singletons (+0.0039), but ties M-v11 on the doubled-
+  distractor eval, which is where it should have won. M-v11 stays first. CatBoost failed on the first attempt: the
+  runner's uv environment has no pip, so chain6's install step did nothing. catboost 1.2.10 was installed with uv at
+  ~17:15 IST, and chain7 reruns M-v15, M-v16 and M-v18 after chain6 (M-v17, M-v13, M-v14).
 
 ### BLK-v5 — a learned candidate filter: from 48 to a few candidates per S1 (M-v11, M-v12)
 
