@@ -143,6 +143,39 @@ Copy the template below for each run, newest entry first. Record every run, incl
 - Next step:
 -->
 
+### The unseen country — leave-one-country-out (M-v19) and self-training (M-v20)
+
+- **Date:** 2026-09-26, after M-v11 scored **0.970** on the public leaderboard (M-v5: 0.971; eval 0.9854 and 0.9852).
+  Every model since M-v5 scores ~0.985 on the test-like eval and ~0.970 on the leaderboard, and none of the matcher
+  changes moved the leaderboard. Doubling the lookalikes costs only 0.001 on the eval, so the gap needs another cause.
+- **Test profiles by country are nearly identical across M-v5, M-v6 and M-v11** (France 93.9% of S1 linked, 3.13 links
+  each; India 94.0–94.1%, 3.28–3.30; US 94.1%, 3.30–3.31). On France the models disagree most: 10% of French link
+  sets differ between M-v11 and M-v5, against 5–6% elsewhere. A label-free estimate of the true links per S1, from
+  the per-source record counts (the S3−S2 excess; ±0.1 on train), gives France 3.31, India 3.47, US 3.41. That is the
+  same ratio of predicted to true links in all three countries, so the counts alone do not single out France.
+- **Leave-one-country-out** (`train_countries`, M-v19): fit on one country, choose the rule on that country's eval
+  entities, and score the other country as unseen. That is France's situation, except the held-out country keeps
+  its learned aliases, so the loss shown is a lower bound.
+
+| Fitted on | Unseen country | Its F0.5 unseen | Same country, fitted (M-v11) | Loss | Precision | Recall | Singletons |
+|---|---|---:|---:|---:|---:|---:|---:|
+| US (M-v19-us) | India | **0.9444** | 0.9817 | **−0.037** | 0.963 (0.995) | 0.921 (0.955) | 0.852 (0.977) |
+| India (M-v19-in) | US | **0.9637** | 0.9879 | **−0.024** | | | |
+
+  The fitted country keeps its score (US 0.9877, India 0.9816). **An unseen country loses 0.024–0.037**, both in
+  precision (links to lookalikes, and false links for S1 records with no match) and in recall. The unseen model even
+  links more (India 94.9% of S1, 3.46 links each), just to the wrong records. France, 15% of the test S1 records,
+  has no labels and no aliases. At 0.93–0.95 it would cost the leaderboard 0.005–0.008. At ~0.88, the value that
+  would put the leaderboard at 0.970 with India and US at their eval scores, it would explain the whole gap.
+- **A decision rule cannot fix it.** The best of all 99 rules on India's own labels (oracle) gives 0.9446 against
+  0.9444 for the rule chosen on the US. The loss is in the scores, not the threshold.
+- **Self-training (MATCH-v20):** the first model's confident candidates in the unseen country become
+  pseudo-labelled fit rows. A candidate that is the best for its target with p2 ≥ 0.9 counts as a match; one with
+  p2 ≤ 0.1 counts as a non-match. Both stages are then retrained, and the country's entities are scored
+  out-of-fold, so no pseudo-label scores its own entity. M-v20-us checks it on India (fitted on US + India's
+  pseudo-labels, India's eval slice untouched by true labels), and M-v20 applies it to France. Results below when the
+  runs finish.
+
 ### Model families and loss functions, chosen from the data — M-v13 to M-v18
 
 - **Date:** 2026-09-26. Commit `a8bfca7`. All on the filtered candidates (BLK-v5-tlu40 + FEAT-v4), same eval slice.
