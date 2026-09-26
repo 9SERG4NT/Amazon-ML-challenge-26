@@ -144,6 +144,33 @@ Copy the template below for each run, newest entry first. Record every run, incl
 - Next step:
 -->
 
+### A cross-encoder feature, the team pipeline's main idea (FEAT-v6 / FEAT-v7 → M-v25 / M-v26)
+
+- **Date:** 2026-09-26, 23:30 IST (deadline: 2026-09-27 midnight). The team's cross-encoder carries 75% of its XGBoost
+  gain (their validation 0.9812 → 0.9856 when added), and their run scores 0.98 against our 0.970. A text model that
+  reads both records together should also transfer better to France than hand-made string features: in the
+  leave-one-country-out runs an unseen country lost 0.024–0.037.
+- **Design (`experiments/cross_encoder.py`).** The candidate pairs are exactly M-v11's (BLK-v5-tlu40): 6,875,607 train
+  pairs (56.7% true links) and 11,191,806 test pairs. The fit and rest entities are split into two halves by a hash
+  of the S1 row id (1,980,712 and 1,980,101 pairs). Model A trains on half 0, model B on half 1; each fit pair is
+  scored by the model that never saw its S1. The 2,914,794 early-stop and eval pairs and all test pairs are scored
+  by A (or the mean of both). So the LightGBM never reads a score from a model trained on the same entity, as the
+  team trained its cross-encoder on entities its XGBoost did not use. FEAT versions can now reuse another
+  version's feature parts and join such external pair scores (`base`, `extra`): FEAT-v6 = FEAT-v4 + ce1,
+  FEAT-v7 = FEAT-v4 + ce2.
+  - **ce1:** `google/bert_uncased_L-4_H-256_A-4` (Apache-2.0, 11M parameters) on our normalised
+    '<name> | <address>' texts, on the runner's CPU (600k training pairs per half).
+  - **ce2:** `intfloat/multilingual-e5-small` (MIT, 118M, the model family the team used) on the raw texts
+    (Devanagari, French accents), 1M training pairs per half. It runs on Kaggle's 2× T4 (`infra/kaggle/ce`, one
+    half per GPU), and unseen pairs get the mean of both models.
+- **Checks:** a fake work directory ran export → training → scoring → the FEAT-v6 join (0 missing scores), and the
+  Kaggle kernel ran end to end on fake data on the laptop GPU. Throughput of the 4-layer model: laptop RTX 3050
+  (fp16) 1.2k pairs/s training and 8.8k/s scoring; laptop CPU (4 threads) about 40 and 430 pairs/s.
+- **Status:** the pair export is done and in S3 (`experiments/ce/NORM-v2__BLK-v5-tlu40/`). The Kaggle run waits for
+  the ID files to be uploaded as the private dataset `serg4nt/mlc26-ce-pairs`. The runner run waits for a
+  decision: stopping chain15 and installing PyTorch into the runner environment was refused by the permission check,
+  as interfering with running jobs.
+
 ### Our stage 2 on top of the team's pipeline (`experiments/stack_stage2.py`)
 
 - **Date:** 2026-09-26, 21:40 IST. The team's run scored **0.98** on the public leaderboard (M-v11: 0.970), so it is the
@@ -164,8 +191,8 @@ Copy the template below for each run, newest entry first. Record every run, incl
   (P 0.9954, R 0.9596, singletons 0.9780); on the stacked p2 it is gated 0.55 (P 0.9957, R 0.9618, singletons 0.9837).
   Our production stage 2 gains +0.0021 (0.9854). It trains on the fit entities (75% of train S1 instead of 20%), sees
   every rival S1 and has all ~65 stage-1 features. The script takes the team's own features as extra columns, which
-  should recover part of that difference. Pending: without the per-target features, and our production p2 as the
-  input (reference).
+  should recover part of that difference. Without the per-target features: 0.9840 (+0.0007). With our production p2
+  as the input, the script reproduces its 0.9854 exactly and a third stage adds nothing (0.9853), so it keeps p2.
 
 ### The team's second pipeline (bi-encoder + cross-encoder + XGBoost) against M-v11
 
