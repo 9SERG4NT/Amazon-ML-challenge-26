@@ -642,6 +642,10 @@ def stage_train(a, rv: V.RunVersions, P: Paths) -> dict:
     cols = [c for c in pl.read_parquet_schema(tr_parts[0]) if c not in M.ID_COLS]
 
     keep = np.isin(role, [FIT, ES])
+    if mv.train_countries:  # leave-one-country-out: the other countries are never fitted or early-stopped on
+        country = pl.read_parquet(P.prep / "Q_train.parquet", columns=["country"])["country"].to_numpy()
+        keep &= np.isin(country, list(mv.train_countries))
+        log(f"fitting on {', '.join(mv.train_countries)} only")
     X, y, q, rows = _load_rows(tr_parts, keep, cols, pairs)
     log(f"training rows: {len(y):,} ({y.mean():.4f} positive), {len(cols)} features")
     w = None
@@ -726,6 +730,14 @@ def stage_predict(a, rv: V.RunVersions, P: Paths) -> dict:
     q_eval = np.flatnonzero(role == EVAL).astype(np.uint32)
     ids_eval = pl.DataFrame({"q_rid": q_eval})
     truth_eval = pairs.join(ids_eval, on="q_rid", how="semi")
+    # the rule is chosen on these eval entities (all of them, or only the fitted countries' for a leave-out run)
+    q_rule = q_eval
+    if rv.match.train_countries:
+        country = pl.read_parquet(P.prep / "Q_train.parquet", columns=["country"])["country"].to_numpy()
+        q_rule = q_eval[np.isin(country[q_eval], list(rv.match.train_countries))]
+        log(f"rule chosen on {len(q_rule):,} eval entities of {', '.join(rv.match.train_countries)}")
+    ids_rule = pl.DataFrame({"q_rid": q_rule})
+    truth_rule = pairs.join(ids_rule, on="q_rid", how="semi")
     cand_eval = S.select("q_rid", "t_rid").join(ids_eval, on="q_rid", how="semi")
     oracle = macro_f05(cand_eval.join(truth_eval, on=["q_rid", "t_rid"]), truth_eval, q_eval)
     log(f"eval: {len(q_eval):,} S1 entities; perfect matcher on these candidates F0.5={oracle['f05']:.4f}")
@@ -735,12 +747,12 @@ def stage_predict(a, rv: V.RunVersions, P: Paths) -> dict:
     key = "f05_dup" if rv.match.eval_dup else "f05"
     table = []
     for score in score_cols:
-        ex = _exclusive(S.select("q_rid", "t_rid", pl.col(score).alias("p"))).join(ids_eval, on="q_rid", how="semi")
+        ex = _exclusive(S.select("q_rid", "t_rid", pl.col(score).alias("p"))).join(ids_rule, on="q_rid", how="semi")
         for rule in rv.match.rules:
             for v in PARAMS[rule]:
                 links = _decide(ex, rule, float(v))
-                dup = macro_f05(links, truth_eval, q_eval, double=distractors)
-                table.append({"score": score, "rule": rule, "param": float(v), **macro_f05(links, truth_eval, q_eval),
+                dup = macro_f05(links, truth_rule, q_rule, double=distractors)
+                table.append({"score": score, "rule": rule, "param": float(v), **macro_f05(links, truth_rule, q_rule),
                               "f05_dup": dup["f05"], "precision_dup": dup["precision"]})
         for k in ("f05", "f05_dup"):
             b = max((r for r in table if r["score"] == score), key=lambda r: r[k])

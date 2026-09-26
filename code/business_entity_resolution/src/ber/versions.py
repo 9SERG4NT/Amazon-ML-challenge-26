@@ -85,6 +85,8 @@ class Match:
     distractor_weight: float = 1.0  # training weight of rows whose target is a distractor (no train S1 links to it)
     eval_dup: bool = False          # choose the rule on the doubled-distractor eval (links to distractors count
                                     # twice: the test's lookalike density) instead of the plain eval slice
+    train_countries: tuple = ()     # fit (and early-stop) only on S1 records of these countries and choose the rule on
+                                    # their eval entities only: the other countries are scored as unseen, like France
     entity_weight: bool = False     # weight each training row by what its error costs its S1's F0.5 (macro metric:
                                     # a wrong link costs a no-match S1 everything, a 5-link S1 about 0.12; a missed
                                     # link costs a 1-link S1 everything, a 5-link S1 about 0.05); mean weight 1
@@ -209,6 +211,12 @@ MATCH = _index(
                        "metric does", lgb=(("learning_rate", 0.1),), fit_rest=True, entity_weight=True),
     Match("MATCH-v18", "blend of LightGBM, the neural network and CatBoost (MATCH-v6, v13, v15): mean of their probabilities",
           fit_rest=True, blend_of=("MATCH-v6", "MATCH-v13", "MATCH-v15")),
+    Match("MATCH-v19-us", "leave-one-country-out diagnostic: MATCH-v6 fitted on US S1 records only, rule chosen on US eval "
+                          "entities only, so India is scored as an unseen country (as France is). India still has its "
+                          "learned aliases, which France lacks, so the unseen-country loss it shows is a lower bound",
+          lgb=(("learning_rate", 0.1),), fit_rest=True, train_countries=("US",)),
+    Match("MATCH-v19-in", "the mirror of MATCH-v19-us: fitted on India only, the US scored as unseen",
+          lgb=(("learning_rate", 0.1),), fit_rest=True, train_countries=("India",)),
 )
 
 PRESETS = {
@@ -236,6 +244,9 @@ PRESETS = {
     "M-v16": ("NORM-v2", "BLK-v5-tlu40", "FEAT-v4", "MATCH-v16"),
     "M-v17": ("NORM-v2", "BLK-v5-tlu40", "FEAT-v4", "MATCH-v17"),
     "M-v18": ("NORM-v2", "BLK-v5-tlu40", "FEAT-v4", "MATCH-v18"),
+    # leave-one-country-out: how much does a country the model never saw lose? (France has no training links)
+    "M-v19-us": ("NORM-v2", "BLK-v5-tlu40", "FEAT-v4", "MATCH-v19-us"),
+    "M-v19-in": ("NORM-v2", "BLK-v5-tlu40", "FEAT-v4", "MATCH-v19-in"),
 }
 DEFAULT_PRESET = "M-v3"
 
