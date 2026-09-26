@@ -15,3 +15,6 @@ __pycache__/
 .venv/
 venv/
 .ipynb_checkpoints/
+
+# rendered by infra/aws/ec2/launch_runner.sh
+infra/aws/ec2/.user_data.rendered.sh
