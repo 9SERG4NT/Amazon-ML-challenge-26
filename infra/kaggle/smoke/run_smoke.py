@@ -14,7 +14,7 @@ import sys
 import threading
 import time
 
-CONFIG = {"preset": "M-v10", "sample": 0.01, "min_ram_gb": 12, "args": ""}
+CONFIG = {"preset": "M-v11", "sample": 0.01, "min_ram_gb": 12, "args": ""}
 REPO = "https://github.com/9SERG4NT/Amazon-ML-challenge-26"
 BRANCH = "sumukh/full-pipeline-aws"
 NEEDED = {"train": ["train_source1.tsv", "train_source2.tsv", "train_source3.tsv", "train_ground_truth.tsv"],

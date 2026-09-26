@@ -47,6 +47,12 @@ class Block:
                                     # targets); the rest leave with their targets, so distractors per S1 rise
     dup_distractors: int = 1        # train universe: every distractor (a target no train S1 links to) appears this
                                     # many times; the copies take top-k slots like the originals would
+    prune_keep: float = 0.0         # learned candidate filter, a second blocking stage: a small LightGBM on the
+                                    # blocking scores and their competition context (no string similarity) keeps
+                                    # the candidates above the threshold that retains this share of the true links
+                                    # the search found for fit entities (out-of-fold); 0 = keep the whole search
+    search_from: str | None = None  # reuse the cached search output of this blocking version (it must have the
+                                    # same search settings) instead of searching again; searches when not cached
 
 
 @dataclass(frozen=True)
@@ -126,6 +132,11 @@ BLOCK = _index(
                              "Duplicating keeps the mix and doubles the lookalikes per S1 (US 2.3, India 2.6 "
                              "distractors per S1; test 2.3)",
           dup_distractors=2),
+    Block("BLK-v5-tlu40", "BLK-v4b@20-tlu40 + a learned candidate filter: a small LightGBM on the blocking scores and "
+                          "their competition context keeps 99.5% of the true links the search found (threshold set "
+                          "out-of-fold on fit entities). The search's 48 candidates per S1 are mostly low-ranked "
+                          "rivals, and the final ranking favours a smaller candidate set per S1",
+          keep_nonevals=0.4, prune_keep=0.995, search_from="BLK-v4b@20-tlu40"),
 )
 
 FEAT = _index(
@@ -193,6 +204,9 @@ PRESETS = {
     "M-v9": ("NORM-v2", "BLK-v4b@20-dup2", "FEAT-v4", "MATCH-v9"),
     # M-v6's universe and features; distractors weighted twice in training, rule chosen on the doubled-distractor eval
     "M-v10": ("NORM-v2", "BLK-v4b@20-tlu40", "FEAT-v4", "MATCH-v10"),
+    # M-v6 and M-v10 on the filtered candidates (a smaller candidate set per S1)
+    "M-v11": ("NORM-v2", "BLK-v5-tlu40", "FEAT-v4", "MATCH-v6"),
+    "M-v12": ("NORM-v2", "BLK-v5-tlu40", "FEAT-v4", "MATCH-v10"),
 }
 DEFAULT_PRESET = "M-v3"
 

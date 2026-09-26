@@ -29,6 +29,7 @@ import json
 import subprocess
 import sys
 import time
+from dataclasses import asdict, replace
 from pathlib import Path
 
 import lightgbm as lgb
@@ -241,8 +242,95 @@ def stage_prep(a, rv: V.RunVersions, P: Paths) -> dict:
 
 
 # --------------------------------------------------------------------- block
+def _cached_search(rv: V.RunVersions, P: Paths, split: str) -> Path | None:
+    """The cached search output of ``rv.block.search_from`` (same search settings), if it exists."""
+    bv = rv.block
+    if not bv.search_from:
+        return None
+    src = V.BLOCK[bv.search_from]
+    settings = lambda b: {k: v for k, v in asdict(b).items() if k not in ("id", "note", "prune_keep", "search_from")}
+    if settings(src) != settings(bv):
+        raise SystemExit(f"{bv.id} cannot reuse the search of {src.id}: the search settings differ")
+    f = P.block.parent / replace(rv, block=src).key("block") / f"cand_{split}.parquet"
+    return f if f.exists() else None
+
+
+FILTER_PARAMS = {"learning_rate": 0.1, "num_leaves": 63, "min_data_in_leaf": 1000}
+FILTER_FOLDS = 3
+FILTER_CURVE = (0.98, 0.99, 0.995, 0.997, 0.999)
+
+
+def _filter_frame(C: pl.DataFrame, Q: pl.DataFrame, T: pl.DataFrame) -> pl.DataFrame:
+    """The filter's inputs: the search's own scores and their competition context, no string similarity."""
+    base = C.select(pl.col("src").cast(pl.Float32), pl.col("bscore").cast(pl.Float32), pl.col("cos_name").cast(pl.Float32),
+                    pl.col("cos_addr").cast(pl.Float32), pl.col("noaddr_pass").cast(pl.Float32))
+    return pl.concat([base, context_features(C, Q, T)], how="horizontal")
+
+
+def candidate_filter(a, bv: V.Block, P: Paths, Cs: dict) -> tuple[dict, dict]:
+    """Second blocking stage: keep the candidates a small LightGBM on the blocking scores rates as plausible.
+
+    Trained like the matchers (fit and rest entities of the universe, cross-fitted: fit rows get the
+    out-of-fold probability, all other rows the fold mean). The threshold keeps ``bv.prune_keep`` of the
+    fit entities' true links that the search found; eval recall is reported, never used to choose.
+    """
+    role = pl.read_parquet(P.prep / "split.parquet")["role"].to_numpy()
+    role = np.where(role == REST, FIT, role).astype(np.int8)
+    fold = np.random.default_rng(a.seed + 1).integers(0, FILTER_FOLDS, len(role)).astype(np.int8)
+    pairs = pl.read_parquet(P.prep / "pairs.parquet")
+    Q, T, _ = train_frames(a, bv, P, with_copies=False)
+    n_q = {"train": Q.height}
+    F = _filter_frame(Cs["train"], Q, T)
+    cols, X = F.columns, F.to_numpy()
+    del F, Q, T
+    y = _labels(Cs["train"], pairs)
+    q = Cs["train"]["q_rid"].to_numpy()
+    is_fit, is_es = role[q] == FIT, role[q] == ES
+    models = []
+    for f in range(FILTER_FOLDS):
+        tr = is_fit & (fold[q] != f)
+        t0 = time.time()
+        m = M.train_arrays(X[tr], y[tr], X[is_es], y[is_es], cols, params=FILTER_PARAMS, rounds=1000)
+        m.save_model(str(P.block / f"filter_fold{f}.txt"))
+        models.append(m)
+        log(f"filter fold {f}: {int(tr.sum()):,} rows, best iteration {m.best_iteration} ({time.time() - t0:.0f}s)")
+    p = {"train": _predict(models, X, q, role, fold)}
+    del X
+    Qt = pl.read_parquet(P.prep / "Q_test.parquet", columns=["rid", "country", "name_core"])
+    Tt = pl.read_parquet(P.prep / "T_test.parquet", columns=["rid", "country", "name_core"])
+    n_q["test"] = Qt.height
+    Xt = _filter_frame(Cs["test"], Qt, Tt).to_numpy()
+    p["test"] = _predict(models, Xt, Cs["test"]["q_rid"].to_numpy(), None, None)
+    del Xt
+
+    pos = p["train"][is_fit & (y == 1)]
+    ev_true = (role[q] == EVAL) & (y == 1)
+    n_ev = int((role[pairs["q_rid"].to_numpy()] == EVAL).sum())
+    curve = {}
+    for keep in sorted({*FILTER_CURVE, bv.prune_keep}):
+        tau = float(np.quantile(pos, 1 - keep))
+        curve[str(keep)] = {"threshold": tau, "recall_eval": float((ev_true & (p["train"] >= tau)).sum() / n_ev),
+                            **{f"per_s1_{s}": float((p[s] >= tau).sum() / n_q[s]) for s in ("train", "test")}}
+    log("filter curve (share of found fit links kept: threshold, eval pair recall, candidates per S1 train/test): "
+        + "; ".join(f"{k}: {v['threshold']:.4f}, {v['recall_eval']:.4f}, {v['per_s1_train']:.1f}/{v['per_s1_test']:.1f}"
+                    for k, v in curve.items()))
+    tau = curve[str(bv.prune_keep)]["threshold"]
+    kept = {s: C.with_columns(pl.Series("p_block", p[s])).filter(pl.col("p_block") >= tau) for s, C in Cs.items()}
+    dist = {}
+    for s, C in kept.items():
+        v = C.group_by("q_rid").len()["len"].to_numpy()  # S1 records with no candidate left count as 0
+        v = np.concatenate([v, np.zeros(n_q[s] - len(v), v.dtype)])
+        dist[s] = {"mean": float(v.mean()), "p50": float(np.percentile(v, 50)), "p90": float(np.percentile(v, 90)),
+                   "p99": float(np.percentile(v, 99)), "max": int(v.max()), "share_empty": float((v == 0).mean())}
+    log(f"filter keeps {bv.prune_keep} (threshold {tau:.4f}): candidates per S1 {dist}")
+    return kept, {"features": cols, "best_iterations": [m.best_iteration for m in models],
+                  "importance": _importance(models), "threshold": tau, "curve": curve, "per_s1": dist}
+
+
 def stage_block(a, rv: V.RunVersions, P: Paths) -> dict:
     bv = rv.block
+    if bv.prune_keep > 0 and bv.dup_distractors > 1:
+        raise SystemExit("the candidate filter does not handle distractor copies")
     spec = None
     if bv.region_split:
         spec = learn_region_merges(pl.read_parquet(P.prep / "Q_train.parquet"),
@@ -253,6 +341,7 @@ def stage_block(a, rv: V.RunVersions, P: Paths) -> dict:
     P.block.mkdir(parents=True, exist_ok=True)
     write_json(P.block / "region_spec.json", spec or {})
     out = {"region_spec": spec}
+    Cs, n_q, q_universe = {}, {}, None
     for split in ("train", "test"):
         copies = None
         if split == "train":
@@ -263,42 +352,65 @@ def stage_block(a, rv: V.RunVersions, P: Paths) -> dict:
         else:
             Q = pl.read_parquet(P.prep / f"Q_{split}.parquet")
             T = pl.read_parquet(P.prep / f"T_{split}.parquet")
-        parts = []
-        for country in Q["country"].unique().sort().to_list():  # one country at a time bounds memory
-            Qc, Tc = Q.filter(pl.col("country") == country), T.filter(pl.col("country") == country)
-            if Tc.height == 0:
-                continue
-            t0 = time.time()
-            ff = lambda df: feature_frame(df, char_grams=bv.char_grams, joined_name=bv.joined_name)
-            C = generate_candidates(Qc, Tc, ff(Qc), ff(Tc), k=bv.k, k_noaddr=bv.k_noaddr, max_df_frac=bv.max_df_frac,
-                                    min_df_cap=bv.min_df_cap, region_spec=spec)
-            parts.append(C)
-            log(f"block {split}/{country}: S1 {Qc.height:,} x targets {Tc.height:,} -> "
-                f"{C.height:,} candidates ({time.time() - t0:.0f}s)")
-        C = pl.concat(parts).sort("q_rid", "src", "bscore", descending=[False, False, True])
+        cached = _cached_search(rv, P, split)
+        if cached is not None:
+            C = pl.read_parquet(cached)
+            log(f"block {split}: search output of {bv.search_from} reused ({C.height:,} candidates)")
+        else:
+            parts = []
+            for country in Q["country"].unique().sort().to_list():  # one country at a time bounds memory
+                Qc, Tc = Q.filter(pl.col("country") == country), T.filter(pl.col("country") == country)
+                if Tc.height == 0:
+                    continue
+                t0 = time.time()
+                ff = lambda df: feature_frame(df, char_grams=bv.char_grams, joined_name=bv.joined_name)
+                C = generate_candidates(Qc, Tc, ff(Qc), ff(Tc), k=bv.k, k_noaddr=bv.k_noaddr, max_df_frac=bv.max_df_frac,
+                                        min_df_cap=bv.min_df_cap, region_spec=spec)
+                parts.append(C)
+                log(f"block {split}/{country}: S1 {Qc.height:,} x targets {Tc.height:,} -> "
+                    f"{C.height:,} candidates ({time.time() - t0:.0f}s)")
+            C = pl.concat(parts).sort("q_rid", "src", "bscore", descending=[False, False, True])
         if copies is not None:
             n0 = C.height
             C = copy_candidates(C, copies, bv.k, bv.k_noaddr)
             out["distractor_copies"] = {"records": copies.height, "candidates_before": n0, "candidates_after": C.height}
             log(f"block {split}: {copies.height:,} distractor copies; candidates {n0:,} -> {C.height:,}")
-        C.write_parquet(P.block / f"cand_{split}.parquet")
-        log(f"block {split}: {C.height:,} candidates, {C.height / Q.height:.1f} per S1")
-        out[split] = {"candidates": C.height, "per_s1": C.height / Q.height}
+        Cs[split], n_q[split] = C, Q.height
         if split == "train":
-            pairs = pl.read_parquet(P.prep / "pairs.parquet").join(Q.select(pl.col("rid").alias("q_rid")), on="q_rid", how="semi")
-            ev = pl.read_parquet(P.prep / "split.parquet").filter(pl.col("role") == EVAL).select("q_rid")
-            pairs_ev = pairs.join(ev, on="q_rid", how="semi")
-            out["train"]["recall_all"] = recall_report(C, pairs)
-            out["train"]["recall_eval"] = recall_report(C.join(ev, on="q_rid", how="semi"), pairs_ev)
-            Ce = C.join(ev, on="q_rid", how="semi")
-            out["train"]["recall_at_k_eval"] = recall_at_k(Ce, pairs_ev)
-            out["train"]["recall_at_k_noaddr_eval"] = noaddr_recall_at_k(Ce, pairs_ev)
-            out["train"]["cand_per_s1_at_k"] = candidates_at_k(C, Q.height)
-            out["train"]["cand_per_s1_at_k_noaddr"] = candidates_at_k(C, Q.height, noaddr=True)
-            log(f"blocking recall: all {out['train']['recall_all']['pair_recall']:.4f}, "
-                f"eval {out['train']['recall_eval']['pair_recall']:.4f}; eval by main-pass k: "
-                + ", ".join(f"{k}:{v:.4f}" for k, v in out["train"]["recall_at_k_eval"].items())
-                + "; by name-only k: " + ", ".join(f"{k}:{v:.4f}" for k, v in out["train"]["recall_at_k_noaddr_eval"].items()))
+            q_universe = Q.select(pl.col("rid").alias("q_rid"))
+        del Q, T
+        log(f"block {split}: {C.height:,} candidates, {C.height / n_q[split]:.1f} per S1")
+        out[split] = {"candidates": C.height, "per_s1": C.height / n_q[split]}
+        if split == "train":
+            out["train"].update(_recall_reports(C, P, q_universe, at_k=True))
+    if bv.prune_keep > 0:  # second blocking stage: the matcher sees only what the filter keeps
+        out["search"] = {s: dict(out[s]) for s in Cs}
+        Cs, out["filter"] = candidate_filter(a, bv, P, Cs)
+        for s, C in Cs.items():
+            out[s] = {"candidates": C.height, "per_s1": C.height / n_q[s]}
+            log(f"block {s}: {C.height:,} candidates after the filter, {C.height / n_q[s]:.1f} per S1")
+        out["train"].update(_recall_reports(Cs["train"], P, q_universe, at_k=False))
+    for s, C in Cs.items():
+        C.write_parquet(P.block / f"cand_{s}.parquet")
+    return out
+
+
+def _recall_reports(C: pl.DataFrame, P: Paths, q_universe: pl.DataFrame, at_k: bool) -> dict:
+    """Pair recall of the universe's links (all and eval); ``at_k`` adds the recall-vs-depth curves of the search."""
+    n_q = q_universe.height
+    pairs = pl.read_parquet(P.prep / "pairs.parquet").join(q_universe, on="q_rid", how="semi")
+    ev = pl.read_parquet(P.prep / "split.parquet").filter(pl.col("role") == EVAL).select("q_rid")
+    pairs_ev = pairs.join(ev, on="q_rid", how="semi")
+    Ce = C.join(ev, on="q_rid", how="semi")
+    out = {"recall_all": recall_report(C, pairs), "recall_eval": recall_report(Ce, pairs_ev)}
+    if at_k:
+        out.update({"recall_at_k_eval": recall_at_k(Ce, pairs_ev), "recall_at_k_noaddr_eval": noaddr_recall_at_k(Ce, pairs_ev),
+                    "cand_per_s1_at_k": candidates_at_k(C, n_q), "cand_per_s1_at_k_noaddr": candidates_at_k(C, n_q, noaddr=True)})
+        log(f"blocking recall: all {out['recall_all']['pair_recall']:.4f}, eval {out['recall_eval']['pair_recall']:.4f}; "
+            "eval by main-pass k: " + ", ".join(f"{k}:{v:.4f}" for k, v in out["recall_at_k_eval"].items())
+            + "; by name-only k: " + ", ".join(f"{k}:{v:.4f}" for k, v in out["recall_at_k_noaddr_eval"].items()))
+    else:
+        log(f"after the filter: recall all {out['recall_all']['pair_recall']:.4f}, eval {out['recall_eval']['pair_recall']:.4f}")
     return out
 
 
