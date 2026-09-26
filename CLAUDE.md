@@ -231,7 +231,10 @@ the shared eval slice.
   ran tlu40 blocking + FEAT-v4 features (`logs/tlu40-FEAT-v4-features.log`); its bash was killed at ~15:30 IST so its
   M-v10 / M-v6 steps would not run, and **chain5** (`/opt/mlc26/chain5.sh`) waits for `tlu40-FEAT-v4-features.exit`,
   then runs M-v11 (block,features,train,predict: the learned candidate filter), M-v12 (train,predict), M-v10 and M-v6
-  (train,predict on the unfiltered candidates) and touches `logs/CHAIN5_DONE`; log names are the version keys. Kaggle GPU sessions have the same ~29 GB RAM as CPU ones: no full run fits. Read-only SSM commands (tail logs) work. SageMaker:
+  (train,predict on the unfiltered candidates) and touches `logs/CHAIN5_DONE`; log names are the version keys.
+  chain5's bash was killed at ~16:25 IST while M-v11 ran; **chain6** (`/opt/mlc26/chain6.sh`) waits for M-v11's `.exit`,
+  then runs train,predict for M-v12, M-v15 (CatBoost; installs catboost 1.2.10 first), M-v16, M-v17, M-v13 (neural
+  net), M-v14, M-v18, all on the filtered candidates, and touches `logs/CHAIN6_DONE`. Kaggle GPU sessions have the same ~29 GB RAM as CPU ones: no full run fits. Read-only SSM commands (tail logs) work. SageMaker:
   every large-instance quota is 0; ml.m5.4xlarge training/spot requests are CASE_OPENED. Kaggle CPU sessions (30 GB)
   cannot hold a full run: M-v6 there was killed in train blocking after prep peaked at 23.8 GB.
   Then `infra/aws/ec2/launch_runner.sh <PRESET>` (or the same

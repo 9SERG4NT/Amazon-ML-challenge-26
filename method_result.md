@@ -142,6 +142,53 @@ Copy the template below for each run, newest entry first. Record every run, incl
 - Next step:
 -->
 
+### Model families and loss functions, chosen from the data — M-v13 to M-v18
+
+- **Date:** 2026-09-26. Commit `a8bfca7`. All on the filtered candidates (BLK-v5-tlu40 + FEAT-v4), same eval slice.
+- **What the data says about the loss.**
+  - *The metric needs calibrated probabilities.* The per-S1 set is chosen by a threshold or by expected F0.5, which
+    reads the scores as probabilities. So the base loss is a proper scoring rule: **binary log loss**. It is what every
+    model here minimises.
+  - *After the filter the classes are no longer imbalanced.* 93% of the kept rows are true links (1% sample). The
+    negatives left are the hard lookalikes: same name, same street, nearby number. **Focal loss** exists to
+    down-weight a flood of easy negatives, and the filter has already removed them. It would also bend the
+    probabilities away from calibration. Not used.
+  - ***AdaBoost's exponential loss*** grows exponentially with the margin of a mistake. Our labels have irreducible
+    noise: invented trade names, records whose only link is another record of the entity. That noise would dominate
+    the fit, and the scores are not probabilities (the expected-F rule needs them). Gradient boosting with log loss is
+    its robust successor, and LightGBM, XGBoost and CatBoost already are that. Not used (scikit-learn's AdaBoost is
+    also BSD-licensed, and the rules ask for MIT/Apache-2.0).
+  - *The test has twice the lookalikes per S1.* Up-weighting distractor rows ×2 corrects for that prior shift:
+    **MATCH-v10 / M-v12**.
+  - *The metric is a macro average over S1 records, and one error costs very different amounts by entity.* A wrong
+    link costs a no-match S1 its whole score (1.0), a 1-link S1 0.44 and a 5-link S1 0.14. A missed link costs a
+    1-link S1 everything, a 2-link S1 0.17 and a 5-link S1 0.05. Log loss treats all pairs alike. **MATCH-v17 / M-v17**
+    weights each row's log loss by exactly this cost, computed from the S1's number of true links (`fp_cost`,
+    `fn_cost` in `ber/model.py`), with mean weight 1. At 1%, negatives get 2.9× the weight of positives.
+- **Model families** (all Apache-2.0/MIT or our own code, cross-fitted like MATCH-v6, same early-stopping slice):
+  - CatBoost (MATCH-v15): symmetric trees (depth 8), ordered boosting. Different trees from LightGBM's leaf-wise
+    growth, so its errors differ, which is what a blend needs.
+  - A neural network (MATCH-v13), written in numpy: two ReLU layers (256, 128), signed-log and standardised inputs
+    with missing-value flags, **Adam** (lr 1e-3, batch 2,048), learning rate halved whenever the early-stopping loss
+    stalls, stopped after 4 such epochs, best epoch kept. Nothing pretrained, no framework.
+  - Blends (means of stage-1 and stage-2 probabilities, rule chosen again): LightGBM + net (M-v14), LightGBM + CatBoost
+    (M-v16), all three (M-v18).
+- **1% smoke run** (4,403 eval S1, noise about ±0.001, so this only checks that they run):
+
+| Run | Model / loss | Eval F0.5 | Doubled-distractor |
+|---|---|---:|---:|
+| M-v11 | LightGBM, log loss | 0.9953 | 0.9946 |
+| M-v12 | LightGBM, distractors ×2 | 0.9952 | 0.9946 |
+| M-v13 | neural net (Adam) | 0.9936 | 0.9925 |
+| M-v14 | LightGBM + net | 0.9949 | 0.9943 |
+| M-v15 | CatBoost | 0.9952 | 0.9944 |
+| M-v16 | LightGBM + CatBoost | 0.9955 | 0.9948 |
+| M-v17 | LightGBM, metric-aligned weights | 0.9952 | 0.9946 |
+| M-v18 | LightGBM + net + CatBoost | 0.9950 | 0.9944 |
+
+  The net trails at 1% (about 16k rows per fold); on the full data it gets about 200 times more.
+- **Full data:** chain6 on the EC2 runner runs M-v12, M-v15, M-v16, M-v17, M-v13, M-v14 and M-v18 after M-v11.
+
 ### BLK-v5 — a learned candidate filter: from 48 to a few candidates per S1 (M-v11, M-v12)
 
 - **Date:** 2026-09-26. Commit `0d4079d`. Why: the organisers announced on 2026-09-26 that `candidate_pairs.tsv` counts in
