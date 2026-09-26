@@ -419,15 +419,17 @@ def _predict_parts(models, parts: list[Path], cols: list[str], role=None, fold=N
     return np.concatenate(out)
 
 
-def _cross_fit(X, y, q, role, fold, cols, mv: V.Match, tag: str, P: Paths) -> list:
+def _cross_fit(X, y, q, role, fold, cols, mv: V.Match, tag: str, P: Paths, w: np.ndarray | None = None) -> list:
     is_fit, is_es = role[q] == FIT, role[q] == ES
     X_es, y_es = X[is_es], y[is_es]
+    w_es = None if w is None else w[is_es]
     models = []
     train = M.train_arrays_xgb if mv.algo == "xgb" else M.train_arrays
     for f in range(mv.folds):
         tr = is_fit & (fold[q] != f)
         t0 = time.time()
-        m = train(X[tr], y[tr], X_es, y_es, cols, params=mv.lgb_params(), threads=0)
+        m = train(X[tr], y[tr], X_es, y_es, cols, params=mv.lgb_params(), threads=0,
+                  w_tr=None if w is None else w[tr], w_va=w_es)
         m.save_model(str(P.run / f"{tag}_fold{f}.txt"))
         models.append(m)
         log(f"{tag} fold {f}: {int(tr.sum()):,} rows, best iteration {m.best_iteration} ({time.time() - t0:.0f}s)")
@@ -530,8 +532,15 @@ def stage_train(a, rv: V.RunVersions, P: Paths) -> dict:
     keep = np.isin(role, [FIT, ES])
     X, y, q, rows = _load_rows(tr_parts, keep, cols, pairs)
     log(f"training rows: {len(y):,} ({y.mean():.4f} positive), {len(cols)} features")
+    w = None
+    if mv.distractor_weight != 1:  # rows whose target no train S1 links to: the test has twice as many per S1
+        t_rid = pl.read_parquet(P.block / "cand_train.parquet", columns=["t_rid"])["t_rid"].to_numpy()[rows]
+        linked = np.zeros(int(max(t_rid.max(), pairs["t_rid"].max())) + 1, bool)
+        linked[pairs["t_rid"].to_numpy()] = True
+        w = np.where(linked[t_rid], 1.0, mv.distractor_weight).astype(np.float32)
+        log(f"distractor rows weighted {mv.distractor_weight}: {(~linked[t_rid]).mean():.4f} of training rows")
 
-    s1 = _cross_fit(X, y, q, role, fold, cols, mv, "stage1", P)
+    s1 = _cross_fit(X, y, q, role, fold, cols, mv, "stage1", P, w)
     del X  # stage 2 re-reads its rows, so the two matrices are never held together
     p1_tr = _predict_parts(s1, tr_parts, cols, role, fold, margin=mv.pred_margin)
     p1_te = _predict_parts(s1, te_parts, cols, margin=mv.pred_margin)
@@ -550,7 +559,7 @@ def stage_train(a, rv: V.RunVersions, P: Paths) -> dict:
         extra_tr, extra_cols = _stage2_extra(C_tr, p1_tr, text("train"), part(C_tr, "train"))
         cols2 = cols + extra_cols
         X2, _, _, _ = _load_rows(tr_parts, keep, cols, pairs, extra=extra_tr)  # same rows, same order as X
-        s2 = _cross_fit(X2, y, q, role, fold, cols2, mv, "stage2", P)
+        s2 = _cross_fit(X2, y, q, role, fold, cols2, mv, "stage2", P, w)
         del X2
         scores_tr = scores_tr.with_columns(pl.Series("p2", _predict_parts(s2, tr_parts, cols, role, fold, extra=extra_tr, margin=mv.pred_margin)))
         del extra_tr
@@ -603,17 +612,24 @@ def stage_predict(a, rv: V.RunVersions, P: Paths) -> dict:
     oracle = macro_f05(cand_eval.join(truth_eval, on=["q_rid", "t_rid"]), truth_eval, q_eval)
     log(f"eval: {len(q_eval):,} S1 entities; perfect matcher on these candidates F0.5={oracle['f05']:.4f}")
 
+    # doubled-distractor eval: links to targets no train S1 links to count twice (the test's lookalike density)
+    distractors = S.select("t_rid").unique().join(pairs.select("t_rid"), on="t_rid", how="anti")
+    key = "f05_dup" if rv.match.eval_dup else "f05"
     table = []
     for score in score_cols:
         ex = _exclusive(S.select("q_rid", "t_rid", pl.col(score).alias("p"))).join(ids_eval, on="q_rid", how="semi")
         for rule in rv.match.rules:
             for v in PARAMS[rule]:
-                table.append({"score": score, "rule": rule, "param": float(v),
-                              **macro_f05(_decide(ex, rule, float(v)), truth_eval, q_eval)})
-        b = max((r for r in table if r["score"] == score), key=lambda r: r["f05"])
-        log(f"best on {score}: {b['rule']}={b['param']} F0.5={b['f05']:.4f} P={b['precision']:.4f} "
-            f"R={b['recall']:.4f} singletons={b['f05_singletons']:.4f} others={b['f05_non_singletons']:.4f}")
-    best = max(table, key=lambda r: r["f05"])
+                links = _decide(ex, rule, float(v))
+                dup = macro_f05(links, truth_eval, q_eval, double=distractors)
+                table.append({"score": score, "rule": rule, "param": float(v), **macro_f05(links, truth_eval, q_eval),
+                              "f05_dup": dup["f05"], "precision_dup": dup["precision"]})
+        for k in ("f05", "f05_dup"):
+            b = max((r for r in table if r["score"] == score), key=lambda r: r[k])
+            log(f"best on {score} by {k}: {b['rule']}={b['param']} F0.5={b['f05']:.4f} doubled-distractor F0.5="
+                f"{b['f05_dup']:.4f} P={b['precision']:.4f} R={b['recall']:.4f} singletons={b['f05_singletons']:.4f} "
+                f"others={b['f05_non_singletons']:.4f}")
+    best = max(table, key=lambda r: r[key])
 
     # per-country view of the chosen rule
     ex = _exclusive(S.select("q_rid", "t_rid", pl.col(best["score"]).alias("p"))).join(ids_eval, on="q_rid", how="semi")
@@ -624,10 +640,10 @@ def stage_predict(a, rv: V.RunVersions, P: Paths) -> dict:
         qc = np.intersect1d(q_eval, country.filter(pl.col("country") == c)["rid"].to_numpy()).astype(np.uint32)
         if len(qc):
             per_country[c] = macro_f05(pred, truth_eval, qc)
-    log(f"chosen: {best['score']} {best['rule']}={best['param']} -> eval F0.5={best['f05']:.4f}; "
-        + ", ".join(f"{c} {m['f05']:.4f}" for c, m in per_country.items()))
-    result = {"eval": {"oracle": oracle, "best": best, "per_country": per_country,
-                       "table": sorted(table, key=lambda r: -r["f05"])[:25]}}
+    log(f"chosen by {key}: {best['score']} {best['rule']}={best['param']} -> eval F0.5={best['f05']:.4f}, "
+        f"doubled-distractor F0.5={best['f05_dup']:.4f}; " + ", ".join(f"{c} {m['f05']:.4f}" for c, m in per_country.items()))
+    result = {"eval": {"oracle": oracle, "best": best, "chosen_by": key, "per_country": per_country,
+                       "table": sorted(table, key=lambda r: -r[key])[:25]}}
     if not (P.run / "scores_test.parquet").exists():  # a frozen-model run scores the train split only
         return result
 

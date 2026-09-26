@@ -5,18 +5,24 @@ import numpy as np
 import polars as pl
 
 
-def macro_f05(pred: pl.DataFrame, truth: pl.DataFrame, q_ids: np.ndarray) -> dict:
+def macro_f05(pred: pl.DataFrame, truth: pl.DataFrame, q_ids: np.ndarray, double: pl.DataFrame | None = None) -> dict:
     """Score predicted (q_rid, t_rid) links against true links over the S1 ids ``q_ids``.
 
     Per entity: no true matches -> 1.0 if nothing is predicted, else 0.0.
     True matches but nothing (or nothing correct) predicted -> 0.0.
     Otherwise F_0.5 = 1.25 P R / (0.25 P + R). The mean over ``q_ids`` includes
     entities with no candidates at all.
+
+    ``double`` (a ``t_rid`` column): links to these targets count twice among the predictions. With the
+    distractors, this is the test's density: twice train's lookalike distractors per S1, so a model that
+    takes one lookalike takes about two there.
     """
     ids = pl.DataFrame({"q_rid": np.asarray(q_ids, dtype=np.uint32)})
     p = pred.select("q_rid", "t_rid").join(ids, on="q_rid", how="semi")
     t = truth.select("q_rid", "t_rid").join(ids, on="q_rid", how="semi")
     tp = p.join(t, on=["q_rid", "t_rid"]).group_by("q_rid").agg(pl.len().alias("tp"))
+    if double is not None:
+        p = pl.concat([p, p.join(double.select("t_rid"), on="t_rid", how="semi")])
     df = (ids.join(p.group_by("q_rid").agg(pl.len().alias("n_pred")), on="q_rid", how="left")
           .join(t.group_by("q_rid").agg(pl.len().alias("n_true")), on="q_rid", how="left")
           .join(tp, on="q_rid", how="left").fill_null(0))

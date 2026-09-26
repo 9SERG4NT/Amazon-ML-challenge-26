@@ -33,11 +33,12 @@ def train(F_tr: pl.DataFrame, y_tr: np.ndarray, F_va: pl.DataFrame, y_va: np.nda
 
 
 def train_arrays(X_tr: np.ndarray, y_tr: np.ndarray, X_va: np.ndarray, y_va: np.ndarray, cols: list[str],
-                 params: dict | None = None, rounds: int = 3000, threads: int = 0) -> lgb.Booster:
-    """``train`` on float32 feature matrices whose columns are named ``cols``."""
+                 params: dict | None = None, rounds: int = 3000, threads: int = 0,
+                 w_tr: np.ndarray | None = None, w_va: np.ndarray | None = None) -> lgb.Booster:
+    """``train`` on float32 feature matrices whose columns are named ``cols`` (optional row weights)."""
     p = {**DEFAULT_PARAMS, **(params or {}), "num_threads": threads}
-    dtr = lgb.Dataset(X_tr, label=y_tr, feature_name=cols, free_raw_data=True)
-    dva = lgb.Dataset(X_va, label=y_va, reference=dtr)
+    dtr = lgb.Dataset(X_tr, label=y_tr, weight=w_tr, feature_name=cols, free_raw_data=True)
+    dva = lgb.Dataset(X_va, label=y_va, weight=w_va, reference=dtr)
     return lgb.train(p, dtr, rounds, valid_sets=[dva], valid_names=["val"],
                      callbacks=[lgb.early_stopping(100, verbose=False), lgb.log_evaluation(200)])
 
@@ -73,14 +74,15 @@ class XGBModel:
 
 
 def train_arrays_xgb(X_tr: np.ndarray, y_tr: np.ndarray, X_va: np.ndarray, y_va: np.ndarray, cols: list[str],
-                     params: dict | None = None, rounds: int = 3000, threads: int = 0) -> XGBModel:
+                     params: dict | None = None, rounds: int = 3000, threads: int = 0,
+                     w_tr: np.ndarray | None = None, w_va: np.ndarray | None = None) -> XGBModel:
     """``train_arrays`` with XGBoost (Apache-2.0, hist trees): same early stopping on the same slice."""
     import xgboost as xgb
     p = {**XGB_PARAMS, **(params or {})}
     if threads > 0:
         p["nthread"] = threads
-    dtr = xgb.QuantileDMatrix(X_tr, label=y_tr, feature_names=cols, max_bin=p["max_bin"])
-    dva = xgb.QuantileDMatrix(X_va, label=y_va, feature_names=cols, ref=dtr)
+    dtr = xgb.QuantileDMatrix(X_tr, label=y_tr, weight=w_tr, feature_names=cols, max_bin=p["max_bin"])
+    dva = xgb.QuantileDMatrix(X_va, label=y_va, weight=w_va, feature_names=cols, ref=dtr)
     b = xgb.train(p, dtr, rounds, evals=[(dva, "val")], early_stopping_rounds=100, verbose_eval=200)
     return XGBModel(b, cols)
 
