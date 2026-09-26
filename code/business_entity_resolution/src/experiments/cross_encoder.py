@@ -97,7 +97,6 @@ def train_model(qa: list[str], tb: list[str], y: np.ndarray, model_name: str, *,
     dev = _device(device) if isinstance(device, str) else device
     tok = AutoTokenizer.from_pretrained(model_name)
     model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=1).to(dev)
-    enc = tok(qa, tb, truncation="longest_first", max_length=max_len)
     n = len(qa)
     steps = int(math.ceil(n * epochs / batch))
     opt = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=0.01)
@@ -110,7 +109,10 @@ def train_model(qa: list[str], tb: list[str], y: np.ndarray, model_name: str, *,
     done, t0, run = 0, time.time(), 0.0
     while done < steps:
         order = rng.permutation(n)
-        for idx, feats in _batches(tok, enc, order, batch):
+        for b in range(0, n, batch):  # tokenised batch by batch: all pairs at once cost several GB of Python lists
+            idx = order[b:b + batch]
+            feats = tok([qa[i] for i in idx], [tb[i] for i in idx], truncation="longest_first", max_length=max_len,
+                        padding=True, return_tensors="pt")
             with _autocast(dev, half):
                 logits = model(**{k: v.to(dev) for k, v in feats.items()}).logits.float().squeeze(-1)
             loss = lossf(logits, yt[idx].to(dev))
