@@ -51,12 +51,12 @@ Rows with different eval data are not comparable. What the leaderboard taught us
    street, nearby house number) as often as train's. So the test has twice the hard lookalikes
    per S1. The test-like universe only doubled easy, orphaned ones, so its eval (0.985) is still
    optimistic in every country.
-4. **The unseen country.** A model fitted on one country loses 0.024–0.037 on the other, so France (15% of the
-   test, no training links) is the likeliest part of the remaining gap (eval 0.985 against leaderboard 0.970).
-   Self-training, a search tuned across countries and a French house-number fix did not move the eval.
 3. **M-v7 copied every distractor to double the lookalikes.** The model learned to recognise the
    exact copies and over-linked the test (98.5% of S1 linked against ~94%), so it was not
    submitted. M-v10 gets the same density from training weights, with no copies.
+4. **The unseen country.** A model fitted on one country loses 0.024–0.037 on the other, so France (15% of the
+   test, no training links) is the likeliest part of the remaining gap (eval 0.985 against leaderboard 0.970).
+   Self-training, a search tuned across countries and a French house-number fix did not move the eval.
 
 Every experiment, with methods and numbers: [`method_result.md`](method_result.md). The
 submitted files and every run's outputs are listed in [`output/README.md`](output/README.md).
