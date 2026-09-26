@@ -540,7 +540,13 @@ def _cross_fit(X, y, q, role, fold, cols, mv: V.Match, tag: str, P: Paths, w: np
     for f in range(mv.folds):
         tr = is_fit & (fold[q] != f)
         t0 = time.time()
-        m = train(X[tr], y[tr], X_es, y_es, cols, params=mv.lgb_params(), threads=0,
+        params = mv.lgb_params()
+        if mv.monotone_min_corr > 0 and mv.algo == "lgb":  # directions from all fit rows, the same for every fold
+            if f == 0:
+                signs = M.monotone_signs(X[is_fit], y[is_fit], mv.monotone_min_corr)
+                log(f"{tag}: monotone constraints on {sum(s != 0 for s in signs)} of {len(signs)} features")
+            params = {**params, "monotone_constraints": signs}
+        m = train(X[tr], y[tr], X_es, y_es, cols, params=params, threads=0,
                   w_tr=None if w is None else w[tr], w_va=w_es)
         m.save_model(str(P.run / f"{tag}_fold{f}.txt"))
         models.append(m)

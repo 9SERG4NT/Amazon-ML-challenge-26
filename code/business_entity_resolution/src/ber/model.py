@@ -32,6 +32,23 @@ def train(F_tr: pl.DataFrame, y_tr: np.ndarray, F_va: pl.DataFrame, y_va: np.nda
                         params=params, rounds=rounds, threads=threads)
 
 
+def monotone_signs(X: np.ndarray, y: np.ndarray, min_corr: float) -> list[int]:
+    """LightGBM monotone constraints from the data: +1 / -1 for features whose correlation with the label is at least
+    ``min_corr`` in size (missing values set to the column median), 0 elsewhere. A model that must keep such a relation
+    monotone cannot learn a country's quirks around it, which is what an unseen country needs."""
+    yc = y.astype(np.float64) - y.mean()
+    out = []
+    for j in range(X.shape[1]):
+        x = X[:, j].astype(np.float64)
+        bad = ~np.isfinite(x)
+        if bad.any():
+            x[bad] = np.median(x[~bad]) if (~bad).any() else 0.0
+        sx = x.std()
+        r = 0.0 if sx == 0 else float(((x - x.mean()) * yc).mean() / (sx * yc.std()))
+        out.append(int(np.sign(r)) if abs(r) >= min_corr else 0)
+    return out
+
+
 def train_arrays(X_tr: np.ndarray, y_tr: np.ndarray, X_va: np.ndarray, y_va: np.ndarray, cols: list[str],
                  params: dict | None = None, rounds: int = 3000, threads: int = 0,
                  w_tr: np.ndarray | None = None, w_va: np.ndarray | None = None) -> lgb.Booster:

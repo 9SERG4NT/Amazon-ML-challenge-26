@@ -85,6 +85,8 @@ class Match:
     distractor_weight: float = 1.0  # training weight of rows whose target is a distractor (no train S1 links to it)
     eval_dup: bool = False          # choose the rule on the doubled-distractor eval (links to distractors count
                                     # twice: the test's lookalike density) instead of the plain eval slice
+    monotone_min_corr: float = 0.0  # LightGBM monotone constraints for features whose correlation with the label (on
+                                    # the fit rows) is at least this in size, in that direction; 0 = none
     self_train: tuple = ()          # (hi, lo): self-training for countries without training links (France): the first
                                     # model's confident candidates there (best for their target with p2 >= hi, or p2 <=
                                     # lo) become pseudo-labelled fit rows and both stages are trained again
