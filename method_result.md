@@ -194,7 +194,15 @@ Copy the template below for each run, newest entry first. Record every run, incl
 |---|---|---:|---:|---:|---:|---:|---|---|
 | **M-v11** | LightGBM, log loss | **0.9854** | **0.9845** | 0.9962 | 0.9639 | 0.9816 | p2 expected-F 0.4 | 94.0%, 3.13–3.31 |
 | M-v12 | LightGBM, distractors ×2 | 0.9852 | 0.9845 | 0.9969 | 0.9618 | 0.9855 | p2 expected-F 0.2 (chosen on the doubled eval) | 93.9%, 3.10–3.29 |
+| M-v17 | LightGBM, metric-aligned weights | 0.9851 | 0.9840 | | | | p2 threshold 0.5 | 93.9%, 3.13–3.32 |
+| M-v13 | neural net (Adam), both stages | 0.9825 | 0.9811 | | | | p2 gated expected-F 0.55 | 94.2%, 3.27–3.39 |
+| M-v14 | LightGBM + neural net | 0.9847 | 0.9839 | | | | p2 gated expected-F 0.5 | 94.1%, 3.16–3.33 |
 
+  **None of the loss or model changes beats plain log-loss LightGBM.** The metric-aligned weights (M-v17) lose 0.0003:
+  bending the loss toward the metric double-counts what the expected-F rule already does with calibrated
+  probabilities. The neural net (M-v13) trails by 0.0029 even with 200× the smoke run's data (stage 1 stopped at
+  val log loss 0.041; LightGBM's trees handle these thresholded, heavy-tailed features better). Averaging it in
+  (M-v14) costs 0.0007, so its errors are not different enough to help.
   M-v12 trades 0.0021 recall for 0.0007 precision and protects singletons (+0.0039), but ties M-v11 on the doubled-
   distractor eval, which is where it should have won. M-v11 stays first. CatBoost failed on the first attempt: the
   runner's uv environment has no pip, so chain6's install step did nothing. catboost 1.2.10 was installed with uv at
