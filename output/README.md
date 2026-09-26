@@ -4,6 +4,11 @@
 file uploaded to the leaderboard, and the two files `make_submission.py` packs. They must keep
 these exact names.
 
+**Best public leaderboard score: TEAM-B-R5, 0.98** (the teammates' pipeline, in `runs/TEAM-B-R5__e5-FAISS__XGBoost-CE/`).
+It becomes the current submission once its own `candidate_pairs.tsv` is downloaded from their Kaggle notebook. Until
+then the two files at the top of this folder stay M-v11's: its matches with our candidate file would break the rule
+that every match is a candidate.
+
 **Current submission: M-v11** (`NORM-v2__BLK-v5-tlu40__FEAT-v4__MATCH-v6`, public leaderboard **0.970**): M-v6 behind
 the learned candidate filter, **6.5 candidates per S1 instead of 48.1**, stage-2 probabilities with the expected-F rule
 (floor 0.4). It replaced M-v5 (0.971, kept in `runs/`): the same leaderboard score within rounding, with a candidate set
@@ -20,9 +25,9 @@ in git: `*.tsv` is ignored outside the top of this folder, and `candidate_pairs.
 | M-v6 (Kaggle TPU run) | `NORM-v2__BLK-v4b@20-tlu40__FEAT-v4__MATCH-v6` | test-like | 0.9856 | pending | `f055edc3edaeb41e0204d35dae4be8e9` |
 | **M-v11** (EC2, current) | `NORM-v2__BLK-v5-tlu40__FEAT-v4__MATCH-v6` | test-like | 0.9854 | **0.970** | `f96f52d773991cc04870a36cf4b3ed46` |
 | M-v7 (rejected, not downloaded) | `NORM-v2__BLK-v4b@20-dup2__FEAT-v4__MATCH-v6` | doubled distractors (copies) | 0.9856 | not submitted | — |
-| Team pipeline B, run R5 (Kaggle, teammates) | `TEAM-B-R5__e5-FAISS__XGBoost-CE` | their own 10% held out | 0.9875 (not comparable) | pending | `67bdd7f85c52d143128e40dff42418eb` |
+| **Team pipeline B, run R5** (Kaggle, teammates; best) | `TEAM-B-R5__e5-FAISS__XGBoost-CE` | their own 10% held out | 0.9875 (not comparable) | **0.98** | `67bdd7f85c52d143128e40dff42418eb` |
 
-**TEAM-B-R5 (the teammates' pipeline, leaderboard pending).** A fine-tuned e5-small bi-encoder with FAISS search for
+**TEAM-B-R5 (the teammates' pipeline, leaderboard 0.98, the best so far).** A fine-tuned e5-small bi-encoder with FAISS search for
 blocking (5.95 candidates per test S1), then XGBoost with a cross-encoder score and expected-F selection. Its folder
 holds the predictions converted to TSV (the file to upload), the CSV as downloaded, the team's write-up
 (`all_approaches.md`) and a README comparing it with M-v11. It links more than M-v11 (France 3.17 against 3.13 links
