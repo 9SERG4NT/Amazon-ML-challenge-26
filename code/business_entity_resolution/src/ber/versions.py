@@ -78,12 +78,16 @@ class Match:
     fit_rest: bool = False          # also fit the "rest" entities (75% of train S1 instead of 30%; eval unchanged)
     frozen_from: str | None = None  # score with the fold models of run <NORM>__<frozen_from> instead of training;
                                     # the train split only, to measure an old model in a new universe
-    algo: str = "lgb"               # "lgb" (LightGBM) or "xgb" (XGBoost hist; ``lgb`` then holds XGBoost params)
+    algo: str = "lgb"               # "lgb" (LightGBM), "xgb" (XGBoost hist), "cat" (CatBoost) or "mlp" (a numpy neural
+                                    # network, model.MLP_PARAMS); ``lgb`` holds the chosen algorithm's parameter overrides
     blend_of: tuple = ()            # MATCH ids of runs on the same blocking and features: no training, their
                                     # stage-1 and stage-2 probabilities are averaged and the rule is chosen again
     distractor_weight: float = 1.0  # training weight of rows whose target is a distractor (no train S1 links to it)
     eval_dup: bool = False          # choose the rule on the doubled-distractor eval (links to distractors count
                                     # twice: the test's lookalike density) instead of the plain eval slice
+    entity_weight: bool = False     # weight each training row by what its error costs its S1's F0.5 (macro metric:
+                                    # a wrong link costs a no-match S1 everything, a 5-link S1 about 0.12; a missed
+                                    # link costs a 1-link S1 everything, a 5-link S1 about 0.05); mean weight 1
 
     def lgb_params(self) -> dict:
         return dict(self.lgb)
@@ -188,6 +192,23 @@ MATCH = _index(
                        "eval: the test's twice-as-many lookalikes per S1, with no copied records (M-v7's copies let the "
                        "model spot exact twins, so it over-linked the test: 98.5% of S1 linked, 4.2 links each)",
           lgb=(("learning_rate", 0.1),), fit_rest=True, distractor_weight=2.0, eval_dup=True),
+    Match("MATCH-v13", "MATCH-v6 with a neural network in both stages instead of LightGBM: a feed-forward net (hidden "
+                       "ReLU layers of 256 and 128, sigmoid output) on signed-log, standardised features with missing-value "
+                       "flags; weighted binary cross-entropy, Adam (lr 1e-3, batch 2,048), learning rate halved when the "
+                       "early-stopping loss stalls, stopped after 4 such epochs; written in numpy, nothing pretrained",
+          fit_rest=True, algo="mlp"),
+    Match("MATCH-v14", "blend of MATCH-v6 (LightGBM) and MATCH-v13 (neural network) on the same candidates and features: "
+                       "the mean of their stage-1 and stage-2 probabilities, rule chosen on the eval slice",
+          fit_rest=True, blend_of=("MATCH-v6", "MATCH-v13")),
+    Match("MATCH-v15", "MATCH-v6 with CatBoost (Apache-2.0) in both stages: symmetric trees of depth 8, ordered boosting, "
+                       "log loss, lr 0.1, early stopping on the same slice", fit_rest=True, algo="cat"),
+    Match("MATCH-v16", "blend of MATCH-v6 (LightGBM) and MATCH-v15 (CatBoost): mean of their probabilities",
+          fit_rest=True, blend_of=("MATCH-v6", "MATCH-v15")),
+    Match("MATCH-v17", "MATCH-v6 with the metric-aligned loss: each row's log loss weighted by what its error would cost "
+                       "its S1's F0.5 (from the S1's number of true links), so training weighs S1 records as the macro "
+                       "metric does", lgb=(("learning_rate", 0.1),), fit_rest=True, entity_weight=True),
+    Match("MATCH-v18", "blend of LightGBM, the neural network and CatBoost (MATCH-v6, v13, v15): mean of their probabilities",
+          fit_rest=True, blend_of=("MATCH-v6", "MATCH-v13", "MATCH-v15")),
 )
 
 PRESETS = {
@@ -207,6 +228,14 @@ PRESETS = {
     # M-v6 and M-v10 on the filtered candidates (a smaller candidate set per S1)
     "M-v11": ("NORM-v2", "BLK-v5-tlu40", "FEAT-v4", "MATCH-v6"),
     "M-v12": ("NORM-v2", "BLK-v5-tlu40", "FEAT-v4", "MATCH-v10"),
+    # a neural network on the filtered candidates, alone and averaged with LightGBM
+    "M-v13": ("NORM-v2", "BLK-v5-tlu40", "FEAT-v4", "MATCH-v13"),
+    "M-v14": ("NORM-v2", "BLK-v5-tlu40", "FEAT-v4", "MATCH-v14"),
+    # CatBoost, its blend with LightGBM, the metric-aligned loss, and the three-model blend (all on the filtered candidates)
+    "M-v15": ("NORM-v2", "BLK-v5-tlu40", "FEAT-v4", "MATCH-v15"),
+    "M-v16": ("NORM-v2", "BLK-v5-tlu40", "FEAT-v4", "MATCH-v16"),
+    "M-v17": ("NORM-v2", "BLK-v5-tlu40", "FEAT-v4", "MATCH-v17"),
+    "M-v18": ("NORM-v2", "BLK-v5-tlu40", "FEAT-v4", "MATCH-v18"),
 }
 DEFAULT_PRESET = "M-v3"
 

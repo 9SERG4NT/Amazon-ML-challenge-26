@@ -87,6 +87,180 @@ def train_arrays_xgb(X_tr: np.ndarray, y_tr: np.ndarray, X_va: np.ndarray, y_va:
     return XGBModel(b, cols)
 
 
+def _f05(p, r):
+    return np.where(p + r > 0, 1.25 * p * r / np.maximum(0.25 * p + r, 1e-12), 0.0)
+
+
+def fp_cost(k: np.ndarray) -> np.ndarray:
+    """F0.5 an S1 with ``k`` true links (all found) loses to one wrong link; a no-match S1 loses everything."""
+    return np.where(k == 0, 1.0, 1 - _f05(k / (k + 1), 1.0))
+
+
+def fn_cost(k: np.ndarray) -> np.ndarray:
+    """F0.5 an S1 with ``k`` true links loses to one missed link (no wrong ones); with one link, everything."""
+    return 1 - _f05(1.0, (k - 1) / np.maximum(k, 1))
+
+
+CAT_PARAMS = {  # CatBoost (Apache-2.0): symmetric (oblivious) trees, ordered boosting; same log loss as LightGBM
+    "loss_function": "Logloss", "learning_rate": 0.1, "depth": 8, "l2_leaf_reg": 3.0, "border_count": 254,
+    "random_seed": 42, "od_type": "Iter", "od_wait": 100, "use_best_model": True,
+}
+
+
+class CatModel:
+    """A CatBoost classifier behind the LightGBM Booster methods the pipeline uses."""
+
+    def __init__(self, model, cols: list[str]):
+        self.model, self.cols = model, cols
+        self.best_iteration = int(model.get_best_iteration()) + 1
+
+    def predict(self, X: np.ndarray, num_threads: int = 0, **_) -> np.ndarray:
+        return self.model.predict(X, prediction_type="Probability", thread_count=num_threads or -1)[:, 1].astype(np.float32)
+
+    def save_model(self, path: str) -> None:
+        self.model.save_model(str(path).removesuffix(".txt") + ".cbm")
+
+    def feature_name(self) -> list[str]:
+        return list(self.cols)
+
+    def feature_importance(self, importance_type: str = "gain") -> np.ndarray:
+        return np.asarray(self.model.get_feature_importance())
+
+
+def train_arrays_cat(X_tr: np.ndarray, y_tr: np.ndarray, X_va: np.ndarray, y_va: np.ndarray, cols: list[str],
+                     params: dict | None = None, rounds: int = 3000, threads: int = 0,
+                     w_tr: np.ndarray | None = None, w_va: np.ndarray | None = None) -> CatModel:
+    """``train_arrays`` with CatBoost: same early stopping on the same slice."""
+    from catboost import CatBoostClassifier, Pool
+    p = {**CAT_PARAMS, **(params or {}), "iterations": rounds, "thread_count": threads or -1, "verbose": 200}
+    m = CatBoostClassifier(**p)
+    m.fit(Pool(X_tr, y_tr, weight=w_tr, feature_names=cols), eval_set=Pool(X_va, y_va, weight=w_va, feature_names=cols))
+    return CatModel(m, cols)
+
+
+MLP_PARAMS = {  # a feed-forward network written here in numpy: no deep-learning framework, nothing pretrained
+    "hidden": (256, 128), "lr": 1e-3, "batch": 2048, "epochs": 40, "patience": 4, "l2": 1e-6, "seed": 42,
+}
+
+
+def _mlp_stats(X: np.ndarray) -> dict:
+    """Input scaling learned on the training rows: signed log1p, then mean/std; columns with gaps get a flag."""
+    Z = _signed_log(X)
+    mean, std = np.nanmean(Z, 0), np.nanstd(Z, 0)
+    return {"mean": np.nan_to_num(mean).astype(np.float32), "std": np.where(std > 1e-6, std, 1).astype(np.float32),
+            "nan_cols": np.flatnonzero(np.isnan(Z).any(0))}
+
+
+def _signed_log(X: np.ndarray) -> np.ndarray:
+    Z = np.sign(X) * np.log1p(np.abs(X))
+    Z[~np.isfinite(Z)] = np.nan  # an infinite input counts as missing
+    return Z
+
+
+def _mlp_inputs(X: np.ndarray, stats: dict) -> np.ndarray:
+    Z = _signed_log(X)
+    miss = np.isnan(Z)
+    Z = (Z - stats["mean"]) / stats["std"]
+    Z[miss] = 0.0
+    if len(stats["nan_cols"]):
+        Z = np.hstack([Z, miss[:, stats["nan_cols"]]])
+    return Z.astype(np.float32)
+
+
+def _mlp_forward(layers: list, Z: np.ndarray) -> tuple[np.ndarray, list]:
+    acts = [Z]
+    for W, b in layers[:-1]:
+        acts.append(np.maximum(acts[-1] @ W + b, 0))  # ReLU
+    W, b = layers[-1]
+    return (acts[-1] @ W + b)[:, 0], acts  # logits
+
+
+def _sigmoid(z: np.ndarray) -> np.ndarray:
+    return (0.5 * (1 + np.tanh(0.5 * z))).astype(np.float32)
+
+
+class MLPModel:
+    """A trained feed-forward network behind the LightGBM Booster methods the pipeline uses."""
+
+    def __init__(self, layers: list, stats: dict, cols: list[str], best_iteration: int):
+        self.layers, self.stats, self.cols, self.best_iteration = layers, stats, cols, best_iteration
+
+    def predict(self, X: np.ndarray, num_threads: int = 0, **_) -> np.ndarray:
+        out = np.empty(len(X), np.float32)
+        for s in range(0, len(X), 1 << 19):
+            out[s:s + (1 << 19)] = _sigmoid(_mlp_forward(self.layers, _mlp_inputs(X[s:s + (1 << 19)], self.stats))[0])
+        return out
+
+    def save_model(self, path: str) -> None:
+        arrays = {f"{k}{i}": a for i, (W, b) in enumerate(self.layers) for k, a in (("W", W), ("b", b))}
+        np.savez(str(path).removesuffix(".txt") + ".npz", mean=self.stats["mean"], std=self.stats["std"],
+                 nan_cols=self.stats["nan_cols"], cols=np.array(self.cols), **arrays)
+
+    def feature_name(self) -> list[str]:
+        return list(self.cols)
+
+    def feature_importance(self, importance_type: str = "gain") -> np.ndarray:
+        """Weight mass of each (standardised) input in the first layer: a rough proxy, not a gain."""
+        return np.abs(self.layers[0][0][:len(self.cols)]).sum(1)
+
+
+def train_arrays_mlp(X_tr: np.ndarray, y_tr: np.ndarray, X_va: np.ndarray, y_va: np.ndarray, cols: list[str],
+                     params: dict | None = None, rounds: int = 3000, threads: int = 0,
+                     w_tr: np.ndarray | None = None, w_va: np.ndarray | None = None) -> MLPModel:
+    """``train_arrays`` with a neural network: weighted binary cross-entropy, Adam, He initialisation, mini-batches.
+
+    The learning rate halves whenever the early-stopping loss (the same slice LightGBM stops on) fails to improve,
+    and training stops after ``patience`` such epochs; the best epoch's weights are kept.
+    """
+    p = {**MLP_PARAMS, **(params or {})}
+    rng = np.random.default_rng(p["seed"])
+    stats = _mlp_stats(X_tr)
+    Z, Zv = _mlp_inputs(X_tr, stats), _mlp_inputs(X_va, stats)
+    y, yv = y_tr.astype(np.float32), y_va.astype(np.float32)
+    w = np.ones(len(y), np.float32) if w_tr is None else w_tr.astype(np.float32)
+    wv = np.ones(len(yv), np.float32) if w_va is None else w_va.astype(np.float32)
+    sizes = [Z.shape[1], *p["hidden"], 1]
+    layers = [[(rng.standard_normal((a, b)) * np.sqrt(2 / a)).astype(np.float32), np.zeros(b, np.float32)]
+              for a, b in zip(sizes[:-1], sizes[1:])]
+    m = [[np.zeros_like(W), np.zeros_like(b)] for W, b in layers]
+    v = [[np.zeros_like(W), np.zeros_like(b)] for W, b in layers]
+    b1, b2, eps, lr, t = 0.9, 0.999, 1e-8, p["lr"], 0
+
+    def val_loss() -> float:
+        z = np.concatenate([_mlp_forward(layers, Zv[s:s + (1 << 19)])[0] for s in range(0, len(Zv), 1 << 19)])
+        ll = np.maximum(z, 0) - z * yv + np.log1p(np.exp(-np.abs(z)))
+        return float((ll * wv).sum() / wv.sum())
+
+    best, best_layers, best_epoch, bad = np.inf, None, 0, 0
+    for epoch in range(1, p["epochs"] + 1):
+        order = rng.permutation(len(y))
+        for s in range(0, len(order), p["batch"]):
+            idx = order[s:s + p["batch"]]
+            z, acts = _mlp_forward(layers, Z[idx])
+            g = ((_sigmoid(z) - y[idx]) * w[idx] / w[idx].sum())[:, None]  # d loss / d logit
+            t += 1
+            for i in reversed(range(len(layers))):
+                W, bias = layers[i]
+                grads = (acts[i].T @ g + p["l2"] * W, g.sum(0))
+                if i:
+                    g = (g @ W.T) * (acts[i] > 0)
+                for j, gr in enumerate(grads):  # Adam
+                    m[i][j] = b1 * m[i][j] + (1 - b1) * gr
+                    v[i][j] = b2 * v[i][j] + (1 - b2) * gr * gr
+                    layers[i][j] -= lr * (m[i][j] / (1 - b1 ** t)) / (np.sqrt(v[i][j] / (1 - b2 ** t)) + eps)
+        loss = val_loss()
+        print(f"[mlp epoch {epoch}] val logloss {loss:.6f} lr {lr:.2e}", flush=True)
+        if loss < best - 1e-6:
+            best, best_epoch, bad = loss, epoch, 0
+            best_layers = [[W.copy(), b.copy()] for W, b in layers]
+        else:
+            bad += 1
+            lr /= 2
+            if bad >= p["patience"]:
+                break
+    return MLPModel(best_layers, stats, cols, best_epoch)
+
+
 def predict(model: lgb.Booster, F: pl.DataFrame) -> np.ndarray:
     return model.predict(F.select(model.feature_name()).to_numpy(), num_threads=0)
 

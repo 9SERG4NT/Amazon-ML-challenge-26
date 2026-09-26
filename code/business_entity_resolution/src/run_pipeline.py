@@ -536,7 +536,7 @@ def _cross_fit(X, y, q, role, fold, cols, mv: V.Match, tag: str, P: Paths, w: np
     X_es, y_es = X[is_es], y[is_es]
     w_es = None if w is None else w[is_es]
     models = []
-    train = M.train_arrays_xgb if mv.algo == "xgb" else M.train_arrays
+    train = {"xgb": M.train_arrays_xgb, "cat": M.train_arrays_cat, "mlp": M.train_arrays_mlp}.get(mv.algo, M.train_arrays)
     for f in range(mv.folds):
         tr = is_fit & (fold[q] != f)
         t0 = time.time()
@@ -651,6 +651,12 @@ def stage_train(a, rv: V.RunVersions, P: Paths) -> dict:
         linked[pairs["t_rid"].to_numpy()] = True
         w = np.where(linked[t_rid], 1.0, mv.distractor_weight).astype(np.float32)
         log(f"distractor rows weighted {mv.distractor_weight}: {(~linked[t_rid]).mean():.4f} of training rows")
+    if mv.entity_weight:  # what each row's error costs its S1's F0.5: the macro metric counts every S1 once
+        k = np.bincount(pairs["q_rid"].to_numpy(), minlength=len(role))[q].astype(np.float64)  # true links of the S1
+        cost = np.where(y == 1, M.fn_cost(k), M.fp_cost(k))
+        cost = (cost / cost.mean()).astype(np.float32)
+        w = cost if w is None else w * cost
+        log(f"entity weights: positives {cost[y == 1].mean():.3f}, negatives {cost[y == 0].mean():.3f} (mean 1)")
 
     s1 = _cross_fit(X, y, q, role, fold, cols, mv, "stage1", P, w)
     del X  # stage 2 re-reads its rows, so the two matrices are never held together
