@@ -220,8 +220,10 @@ the shared eval slice.
   eligible for Free Tier") until the user upgrades to a paid plan. **Upgraded to the paid plan at ~09:40 IST ($140 credits
   carried over).** Runner **`i-04fb5a4206b8bb43e`** (r7a.2xlarge, us-east-1d, 48 GB swap) launched 09:33 IST; the user
   uploaded `dataset/` (the classifier blocks Claude's presigned upload as "Data Exfiltration"). It runs M-v7 (log
-  `logs/M-v7.log`, 09:45 IST start), then `chain2.sh`: M-v6 via `infra/aws/ec2/run_versions.sh` (reuses prep), then
-  `MATCH-v6-frozen-tlu` on M-v7's features, touching `logs/CHAIN2_DONE`. Read-only SSM commands (tail logs) work. SageMaker:
+  `logs/M-v7.log`, 09:45 IST start), then `chain3.sh` (replaced chain2 at 10:29 IST before it started anything), each via
+  `infra/aws/ec2/run_versions.sh`: M-v8 (XGBoost, MATCH-v8, on M-v7's cached features; installs xgboost 3.4.1 first), M-v9
+  (MATCH-v9 = mean of M-v7's and M-v8's probabilities), M-v6 (reuses prep), then `MATCH-v6-frozen-tlu` on M-v7's
+  features, touching `logs/CHAIN3_DONE`. Kaggle GPU sessions have the same ~29 GB RAM as CPU ones: no full run fits. Read-only SSM commands (tail logs) work. SageMaker:
   every large-instance quota is 0; ml.m5.4xlarge training/spot requests are CASE_OPENED. Kaggle CPU sessions (30 GB)
   cannot hold a full run: M-v6 there was killed in train blocking after prep peaked at 23.8 GB.
   Then `infra/aws/ec2/launch_runner.sh <PRESET>` (or the same
