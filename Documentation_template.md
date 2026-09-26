@@ -2,16 +2,16 @@
 
 **Team Name:** [Your Team Name]  
 **Team Members:** [List all team members]  
-**Submission Date:** [Date]
+**Submission Date:** 2026-09-26
 
 ---
 
 ## 1. Executive Summary
 
-We match records in three stages: an IDF-weighted sparse search generates candidates, a
-two-stage LightGBM classifier scores each (Source 1, candidate) pair, and a per-entity decision
-turns probabilities into the match list that maximises macro F0.5. Three ideas carry most of the
-accuracy:
+We match records in four steps. An IDF-weighted sparse search generates candidates, and a small
+learned filter keeps the plausible ones (**6.5 per Source 1 record**). A two-stage LightGBM
+classifier scores each (Source 1, candidate) pair, and a per-entity decision turns probabilities
+into the match list that maximises macro F0.5. Four ideas carry most of the accuracy:
 
 - **Competition features.** Every Source 2/3 record belongs to at most one Source 1 entity, so a
   candidate is judged against the rival Source 1 records that want the same record.
@@ -23,6 +23,9 @@ accuracy:
 - **Country-agnostic features for the unseen country.** French names are often "<city> <generic
   word> <legal form>". Similarity is therefore also measured on the distinctive part of each name
   and address, after removing the tokens that are frequent in that country's own records.
+- **A learned candidate filter.** The search keeps 48 candidates per record to find 98.7% of the
+  true links. A small LightGBM that sees only the search scores and their competition context
+  cuts that to 6.5 at a cost of 0.0002 F0.5.
 
 ---
 
@@ -60,15 +63,16 @@ Measured on the training files (2.2M Source 1, 5.0M Source 2, 5.3M Source 3 reco
 
 ### 2.2 Solution Strategy
 
-**Approach Type:** Blocking + two-stage classifier + per-entity set decision  
+**Approach Type:** Blocking + learned candidate filter + two-stage classifier + per-entity set decision  
 **Core Innovation:** competition-aware scoring (rank and probability margin against rival Source 1
-records, then exclusive assignment), a test-like validation and training universe, and
-distinctive-part similarity for an unseen country.
+records, then exclusive assignment), a test-like validation and training universe,
+distinctive-part similarity for an unseen country, and a learned filter that keeps the candidate
+set small.
 
 Every component is a named version recorded in `src/ber/versions.py`: normalisation (NORM),
 blocking (BLK), features (FEAT) and matcher (MATCH). Every stage caches its output under the
 versions it depends on, so any logged result can be re-run by name. The submitted run is
-**[pending: NORM-v2 + BLK-v4b@20-tlu40 + FEAT-v3 or FEAT-v4 + MATCH-v6]**.
+preset **M-v11 = NORM-v2 + BLK-v5-tlu40 + FEAT-v4 + MATCH-v6**.
 
 ---
 
@@ -92,9 +96,27 @@ versions it depends on, so any logged result can be re-run by name. The submitte
   searched whole.
 - **Name-only pass** for targets without an address, which would otherwise lose to same-name
   records that have one.
-- **Candidate pairs generated:** 83.3M for the test set (48.1 per Source 1 record) with the
-  submitted BLK-v4b@20: top 20 per Source 1 record and target source, plus the top 5 targets
-  without an address.
+- **Search output:** top 20 per Source 1 record and target source, plus the top 5 targets without
+  an address: 83.3M test pairs (48.1 per Source 1 record). It scales: every record is compared only
+  with records of its own country and region through a sparse index, never all pairs, and the
+  cost grows with records × k.
+- **Learned candidate filter (second blocking stage, BLK-v5-tlu40).** Most of the 48 are
+  low-ranked rivals: each Source 1 record has ~3.4 true links. Cutting the search depth uniformly
+  is a poor trade (top-5 per source: 17.8 candidates, −2.2 points of recall). Instead:
+  - A small LightGBM (63 leaves, 3 folds) sees only what the search produced. Its inputs are the
+    source, the blocking score and its name/address cosines, the name-only flag, and the
+    competition context of those scores: the candidate's rank in its record's list, the gap to
+    the record's best, how many Source 1 records retrieved the target, this record's rank among
+    them and its margin over the best one. It computes no string similarity, so it stays cheap.
+  - It is trained like the matcher: cross-fitted over the fit entities, out-of-fold on its own
+    training rows.
+  - Its threshold keeps 99.5% of the true links the search found for fit entities. It is set
+    out-of-fold, never on the evaluation slice.
+  - Features and the matcher then see **only the kept candidates**, so `candidate_pairs.tsv` is
+    exactly the set the model scores.
+- **Candidate pairs generated:** **11.19M for the test set, 6.5 per Source 1 record** (median 6,
+  90th percentile 10, 99th 14, maximum 40; 0.03% of records have none), against 48.1 before the
+  filter.
 - **How we ensured true matches were not lost:** recall is measured on held-out training entities.
   - With every training entity in the search, BLK-v4b@20 finds 98.32% of the true links: 88.7% for
     targets without an address, 98.8% for the rest.
@@ -102,12 +124,18 @@ versions it depends on, so any logged result can be re-run by name. The submitte
   - A depth measurement (top 40 in the main pass, top 20 in the name-only pass) gives 95.99 /
     97.40 / 98.28 / 98.70 / 98.93% at main-pass depths 5 / 10 / 20 / 30 / 40.
   - The name-only pass adds only 0.11 points between depth 5 and 20, so it stays at 5.
+  - The filter keeps 98.21% of the evaluation slice's true links (search alone: 98.69%). A
+    perfect matcher on the kept candidates would score 0.9945 (0.9959 on the search output). The
+    trade-off curve on the full data (share of found links kept → evaluation recall, candidates per
+    test record): 99% → 97.73%, 5.7; **99.5% → 98.21%, 6.5**; 99.7% → 98.40%, 7.1; 99.9% → 98.59%, 8.5.
+  - The matcher's F0.5 changes from 0.9856 (search output) to 0.9854 (filtered). It would have
+    missed most of the dropped links anyway, and precision rises slightly.
 
 ---
 
 ## 4. Matching Model
 
-**Features used** (52 in stage 1):
+**Features used** (65 in stage 1):
 - **Name features:** rapidfuzz ratio, token-set, token-sort and partial ratios, and Jaro-Winkler
   on the full, core (legal words removed) and joined names; best match against "fka / dba" parts;
   token containment both ways; **soft word alignment** (each core-name token aligned to its best
@@ -141,7 +169,24 @@ versions it depends on, so any logged result can be re-run by name. The submitte
 **Model type:** LightGBM (MIT), binary log loss, 255 leaves, early stopping. The submitted
 matcher (MATCH-v6) uses learning rate 0.1 and fits 75% of the training entities (the first run:
 0.05 and 30%). Stage 1 and stage 2 are both **cross-fitted** over 3 folds of the fit entities,
-so every probability used downstream is out-of-sample.
+so every probability used downstream is out-of-sample. After the filter it trains on 4.2M rows
+(56.8% positive) in about 10 minutes on 8 cores.
+
+**Loss function, chosen from the data:**
+- The decision rule reads the scores as probabilities, so the loss must be a proper scoring rule:
+  **binary log loss**.
+- **Not focal loss:** after the filter the classes are balanced, and the negatives left are the
+  hard lookalikes, so there is no flood of easy negatives to down-weight.
+- **Not AdaBoost's exponential loss:** it lets label noise dominate (invented trade names cannot
+  be learned) and gives no probabilities.
+- Tried on the full data, on the same candidates and evaluation slice, and none beat plain log
+  loss (0.9854):
+  - distractor rows weighted ×2, for the test's doubled lookalike density: 0.9852;
+  - each row weighted by what its error costs its entity's F0.5, the metric's own asymmetry:
+    0.9851 (the decision rule already applies these costs, so the weights count them twice);
+  - a feed-forward neural network (numpy, Adam, learning-rate decay, early stopping): 0.9825;
+  - its average with LightGBM: 0.9847;
+  - CatBoost (Apache-2.0) and its average with LightGBM: [pending].
 
 **Threshold selection method:** each target is kept only for the Source 1 entity that scores it
 highest (exclusive assignment); then a rule chosen on held-out training entities by macro F0.5:
@@ -169,8 +214,10 @@ evaluation links, and evaluation rows are scored exactly like test rows.
 
 ## 5. Results & Error Analysis
 
-- **F_0.5 Score (macro):** **[pending: test-like evaluation slice and leaderboard of the submitted
-  run]**. For reference:
+- **F_0.5 Score (macro):** **0.9854** on the test-like evaluation slice (441,521 entities;
+  precision 0.9962, recall 0.9639; India 0.9817, US 0.9879); public leaderboard [pending].
+  On the test set it links 94.0% of Source 1 records with 3.1–3.3 links each (evaluation truth:
+  94.4% and 3.46). For reference:
   - The first full run (M-v3, full-train universe) scored 0.9813 on the evaluation slice
     (precision 0.9952, recall 0.9544; India 0.9778, US 0.9837) and 0.96 on the public
     leaderboard. A perfect matcher on its candidates would score 0.9947.
@@ -198,7 +245,11 @@ evaluation links, and evaluation rows are scored exactly like test rows.
 | + number-gap features (55) | development sample | 0.9918 | 0.9975 | 0.9810 |
 | M-v3, full-train universe | full data, evaluation slice | 0.9813 | 0.9952 | 0.9544 |
 | M-v3 | public leaderboard | 0.96 | | |
-| **[pending: submitted run]** | test-like evaluation slice / leaderboard | | | |
+| M-v5: test-like universe, number-gap features, 75% fitted | test-like evaluation slice | 0.9852 | 0.9957 | 0.9644 |
+| M-v5 | public leaderboard | 0.971 | | |
+| M-v6: + distinctive-part features | test-like evaluation slice | 0.9856 | 0.9960 | 0.9647 |
+| **M-v11: M-v6 + learned candidate filter (6.5 candidates per record, not 48.1)** | test-like evaluation slice | **0.9854** | 0.9962 | 0.9639 |
+| M-v11 | public leaderboard | [pending] | | |
 
 ---
 
@@ -214,7 +265,11 @@ to be fixed twice:
   The per-source record counts revealed it, and a test-like universe built from the training data
   corrected it.
 
-**[pending: final score]**
+The organisers' emphasis on small candidate sets added a third lesson. The search needs depth to
+find hard links, but the matcher does not need to see that depth. A cheap learned filter on the
+search's own scores cut the candidate set 7.4-fold at a cost of 0.0002 F0.5.
+
+Final submission: M-v11, test-like evaluation F0.5 0.9854, public leaderboard [pending].
 
 ---
 
