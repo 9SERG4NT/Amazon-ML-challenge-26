@@ -181,6 +181,11 @@ FEAT = _index(
                     "the half that never saw its S1, every other pair (early stop, eval, test) by the first half's "
                     "model (experiments/cross_encoder.py)",
          number_gap=True, distinct=True, base="FEAT-v4", extra=("ce1",)),
+    Feat("FEAT-v7", "FEAT-v4 + ce2: the same cross-fitted cross-encoder feature from intfloat/multilingual-e5-small (MIT, "
+                    "118M) on the raw '<business_name> | <business_address>' of both records (original scripts: "
+                    "Devanagari, French accents), 1M training pairs per half, trained and scored on a Kaggle GPU "
+                    "(infra/kaggle/ce); unseen pairs get the mean of both halves' models",
+         number_gap=True, distinct=True, base="FEAT-v4", extra=("ce2",)),
 )
 
 MATCH = _index(
@@ -314,6 +319,7 @@ PRESETS = {
     "M-v24-in": ("NORM-v2", "BLK-v5-tlu40", "FEAT-v4", "MATCH-v24-in"),
     # the team pipeline's strongest idea in ours: a cross-encoder score as a feature (M-v11 + ce1)
     "M-v25": ("NORM-v2", "BLK-v5-tlu40", "FEAT-v6", "MATCH-v6"),
+    "M-v26": ("NORM-v2", "BLK-v5-tlu40", "FEAT-v7", "MATCH-v6"),
 }
 DEFAULT_PRESET = "M-v3"
 
