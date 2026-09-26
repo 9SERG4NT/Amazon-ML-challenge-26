@@ -42,6 +42,49 @@ def train_arrays(X_tr: np.ndarray, y_tr: np.ndarray, X_va: np.ndarray, y_va: np.
                      callbacks=[lgb.early_stopping(100, verbose=False), lgb.log_evaluation(200)])
 
 
+XGB_PARAMS = {  # the LightGBM defaults above, in XGBoost terms: leaf-wise trees of up to 255 leaves
+    "objective": "binary:logistic", "eval_metric": "logloss", "tree_method": "hist", "grow_policy": "lossguide",
+    "max_depth": 0, "max_leaves": 255, "min_child_weight": 5.0, "eta": 0.05, "subsample": 0.8,
+    "colsample_bytree": 0.8, "lambda": 1.0, "max_bin": 256, "seed": 42,
+}
+
+
+class XGBModel:
+    """An XGBoost booster behind the LightGBM Booster methods the pipeline uses."""
+
+    def __init__(self, booster, cols: list[str]):
+        self.booster, self.cols = booster, cols
+        self.best_iteration = int(booster.best_iteration) + 1  # LightGBM counts trees, XGBoost indexes them
+
+    def predict(self, X: np.ndarray, num_threads: int = 0, **_) -> np.ndarray:
+        if num_threads > 0:
+            self.booster.set_param({"nthread": num_threads})
+        return self.booster.inplace_predict(X, iteration_range=(0, self.best_iteration))
+
+    def save_model(self, path: str) -> None:
+        self.booster.save_model(str(path).removesuffix(".txt") + ".json")
+
+    def feature_name(self) -> list[str]:
+        return list(self.cols)
+
+    def feature_importance(self, importance_type: str = "gain") -> np.ndarray:
+        g = self.booster.get_score(importance_type="total_gain" if importance_type == "gain" else "weight")
+        return np.array([g.get(c, 0.0) for c in self.cols])
+
+
+def train_arrays_xgb(X_tr: np.ndarray, y_tr: np.ndarray, X_va: np.ndarray, y_va: np.ndarray, cols: list[str],
+                     params: dict | None = None, rounds: int = 3000, threads: int = 0) -> XGBModel:
+    """``train_arrays`` with XGBoost (Apache-2.0, hist trees): same early stopping on the same slice."""
+    import xgboost as xgb
+    p = {**XGB_PARAMS, **(params or {})}
+    if threads > 0:
+        p["nthread"] = threads
+    dtr = xgb.QuantileDMatrix(X_tr, label=y_tr, feature_names=cols, max_bin=p["max_bin"])
+    dva = xgb.QuantileDMatrix(X_va, label=y_va, feature_names=cols, ref=dtr)
+    b = xgb.train(p, dtr, rounds, evals=[(dva, "val")], early_stopping_rounds=100, verbose_eval=200)
+    return XGBModel(b, cols)
+
+
 def predict(model: lgb.Booster, F: pl.DataFrame) -> np.ndarray:
     return model.predict(F.select(model.feature_name()).to_numpy(), num_threads=0)
 

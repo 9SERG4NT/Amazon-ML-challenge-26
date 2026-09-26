@@ -423,10 +423,11 @@ def _cross_fit(X, y, q, role, fold, cols, mv: V.Match, tag: str, P: Paths) -> li
     is_fit, is_es = role[q] == FIT, role[q] == ES
     X_es, y_es = X[is_es], y[is_es]
     models = []
+    train = M.train_arrays_xgb if mv.algo == "xgb" else M.train_arrays
     for f in range(mv.folds):
         tr = is_fit & (fold[q] != f)
         t0 = time.time()
-        m = M.train_arrays(X[tr], y[tr], X_es, y_es, cols, params=mv.lgb_params(), threads=0)
+        m = train(X[tr], y[tr], X_es, y_es, cols, params=mv.lgb_params(), threads=0)
         m.save_model(str(P.run / f"{tag}_fold{f}.txt"))
         models.append(m)
         log(f"{tag} fold {f}: {int(tr.sum()):,} rows, best iteration {m.best_iteration} ({time.time() - t0:.0f}s)")

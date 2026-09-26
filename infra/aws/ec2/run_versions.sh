@@ -16,9 +16,10 @@ rc=$?
 kill $SYNC
 [ -d "$ROOT/out/$NAME" ] && aws s3 cp "$ROOT/out/$NAME" "$S3/predictions/$NAME/" --recursive --only-show-errors
 for f in "$ROOT"/runs/full/*/*/*.json; do
+  case $(basename "$f") in stage*) continue;; esac  # XGBoost fold models, uploaded below
   aws s3 cp "$f" "$S3/experiments/metrics/$(basename "$(dirname "$f")")/$(basename "$f")" --only-show-errors
 done
-aws s3 cp "$ROOT/runs/full/runs/" "$S3/models/" --recursive --exclude "*" --include "*/stage*_fold*.txt" --only-show-errors
+aws s3 cp "$ROOT/runs/full/runs/" "$S3/models/" --recursive --exclude "*" --include "*/stage*_fold*.txt" --include "*/stage*_fold*.json" --only-show-errors
 echo "$rc" > "$ROOT/logs/$NAME.exit"
 aws s3 cp "$LOG" "$S3/experiments/logs/$NAME.log" --only-show-errors
 aws s3 cp "$ROOT/logs/$NAME.exit" "$S3/experiments/logs/$NAME.exit" --only-show-errors

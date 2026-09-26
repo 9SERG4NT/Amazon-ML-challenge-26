@@ -74,8 +74,8 @@ for split, names in NEEDED.items():
 sh(f"ls -lL {DATA}/train {DATA}/test")
 
 # 3. code and environment: the pinned requirements, then the pipeline from GitHub
-sh("pip install -q polars==1.41.2 lightgbm==4.7.0 rapidfuzz==3.14.5 sparse_dot_topn==1.2.0 anyascii==0.3.3 psutil "
-   "|| pip install -q polars lightgbm rapidfuzz sparse_dot_topn anyascii psutil")
+sh("pip install -q polars==1.41.2 lightgbm==4.7.0 rapidfuzz==3.14.5 sparse_dot_topn==1.2.0 anyascii==0.3.3 psutil xgboost==3.4.1 "
+   "|| pip install -q polars lightgbm rapidfuzz sparse_dot_topn anyascii psutil xgboost")
 sh(f"git clone -q --depth 1 --branch {BRANCH} {REPO} /tmp/repo && git -C /tmp/repo log --oneline -1")
 src_dir = "/tmp/repo/code/business_entity_resolution/src"
 validator = "/tmp/repo/resources/student_resource/utils/validate_submission.py"
@@ -86,7 +86,7 @@ rc = sh(f"{sys.executable} -u run_pipeline.py --data {DATA} --work {WORK} --out 
         f"--sample {CONFIG['sample']} {CONFIG.get('args', '')} --validator {validator} 2>&1 | tee {OUT}/run.log; exit ${{PIPESTATUS[0]}}", check=False)
 for f in glob.glob(f"{WORK}/runs/*/*.json") + glob.glob(f"{WORK}/block/*/*.json") + glob.glob(f"{WORK}/feat/*/*.json"):
     shutil.copy(f, f"{OUT}/{os.path.basename(os.path.dirname(f))}__{os.path.basename(f)}")
-for f in glob.glob(f"{WORK}/runs/*/stage*_fold*.txt"):  # fold models: a later session can score them frozen
+for f in glob.glob(f"{WORK}/runs/*/stage*_fold*.*"):  # fold models: a later session can score them frozen
     dst = f"{OUT}/models/{os.path.basename(os.path.dirname(f))}"
     os.makedirs(dst, exist_ok=True)
     shutil.copy(f, dst)

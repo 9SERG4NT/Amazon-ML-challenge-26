@@ -1,5 +1,5 @@
 # Python 3.12. Exact versions used for every reported run (local, EC2 and SageMaker).
-# Licences: LightGBM MIT (the model), polars MIT, numpy/scipy BSD, rapidfuzz MIT,
+# Licences: LightGBM MIT (the model), XGBoost Apache-2.0 (MATCH-v8), polars MIT, numpy/scipy BSD, rapidfuzz MIT,
 # sparse_dot_topn Apache-2.0, anyascii ISC, pyarrow Apache-2.0, psutil BSD.
 polars==1.41.2
 numpy==2.4.6
@@ -10,3 +10,4 @@ sparse_dot_topn==1.2.0
 anyascii==0.3.3
 pyarrow==24.0.0
 psutil==7.2.2
+xgboost==3.4.1
