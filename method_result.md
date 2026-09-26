@@ -166,10 +166,21 @@ Copy the template below for each run, newest entry first. Record every run, incl
 - **Checks:** a fake work directory ran export → training → scoring → the FEAT-v6 join (0 missing scores), and the
   Kaggle kernel ran end to end on fake data on the laptop GPU. Throughput of the 4-layer model: laptop RTX 3050
   (fp16) 1.2k pairs/s training and 8.8k/s scoring; laptop CPU (4 threads) about 40 and 430 pairs/s.
-- **Status:** the pair export is done and in S3 (`experiments/ce/NORM-v2__BLK-v5-tlu40/`). The Kaggle run waits for
-  the ID files to be uploaded as the private dataset `serg4nt/mlc26-ce-pairs`. The runner run waits for a
-  decision: stopping chain15 and installing PyTorch into the runner environment was refused by the permission check,
-  as interfering with running jobs.
+- **Runs (night of 26–27 Sep).** The pair IDs went up as the private Kaggle dataset `serg4nt/mlc26-ce-pairs`
+  (uploaded by the user). The first Kaggle run (`serg4nt/mlc26-ce2-p100`, 2× T4 despite the P100 request) trained both
+  halves' e5-small models on 800k pairs each (about 17 min, 925 pairs/s per T4). Then one scoring worker was killed for
+  memory: each worker held all 18M pair texts, and ~30 GB of RAM cannot hold two of them. Version 2 streams the pairs
+  in chunks of 500k and splits the unseen pairs between the two models by S1 (q_rid parity), so each pair is scored once.
+  It trains on 1.2M pairs per half (running from 01:54 IST). The runner did the CPU run of ce1 (`chain18`).
+- **How well the cross-encoders alone separate matches** (held-out early-stop pairs, 30k):
+
+| Model | Where | Training pairs per half | Log loss | Accuracy |
+|---|---|---:|---:|---:|
+| ce1: BERT 4×256, normalised text | runner CPU (bf16, 317 pairs/s training, ~2,200/s scoring) | 600k | 0.0593 / 0.0618 | 97.8% / 97.6% |
+| ce2: multilingual-e5-small, raw text | Kaggle 2× T4 (first run) | 800k | **0.0518 / 0.0521** | **98.1% / 98.1%** |
+
+  For comparison, M-v11's full stage-1 LightGBM reaches about 0.040 on the same kind of rows. A text model alone is
+  close to it, and it is a very different signal.
 
 ### Our stage 2 on top of the team's pipeline (`experiments/stack_stage2.py`)
 
