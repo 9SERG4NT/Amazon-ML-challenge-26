@@ -242,7 +242,11 @@ the shared eval slice.
   `output/runs/NORM-v2__BLK-v5-tlu40__FEAT-v4__MATCH-v6/` (md5 `f96f52d7…`), the recommended upload.
   **chain7 done 18:25 IST; every experiment finished.** Full-data eval F0.5 on the filtered candidates: M-v11 0.9854,
   M-v12 0.9852, M-v13 (net) 0.9825, M-v14 0.9847, M-v15 (CatBoost) 0.9850, M-v16 (LGB+Cat) 0.9854 (tie), M-v17
-  (metric-aligned loss) 0.9851, M-v18 0.9851. **M-v11 is the final model.** The runner is idle and stops itself. Kaggle GPU sessions have the same ~29 GB RAM as CPU ones: no full run fits. Read-only SSM commands (tail logs) work. SageMaker:
+  (metric-aligned loss) 0.9851, M-v18 0.9851. M-v11 scored **0.970** on the leaderboard (M-v5 0.971).
+  Evening (IST): chain8 = leave-one-country-out M-v19-us/in (an unseen country loses 0.024-0.037); chain10 = M-v20-us,
+  M-v20 (self-training: +0.0014 only); chain11 = Optuna transfer search (stopped after 3 trials); chain12 = **M-v21**
+  (FEAT-v5: French house numbers were dropped as frequent tokens; 19.3% of French candidates look like the same
+  address with a different number). Kaggle GPU sessions have the same ~29 GB RAM as CPU ones: no full run fits. Read-only SSM commands (tail logs) work. SageMaker:
   every large-instance quota is 0; ml.m5.4xlarge training/spot requests are CASE_OPENED. Kaggle CPU sessions (30 GB)
   cannot hold a full run: M-v6 there was killed in train blocking after prep peaked at 23.8 GB.
   Then `infra/aws/ec2/launch_runner.sh <PRESET>` (or the same

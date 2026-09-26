@@ -184,7 +184,28 @@ Copy the template below for each run, newest entry first. Record every run, incl
   whose correlation with the label is large keep that direction), extra-trees, path smoothing and stronger
   regularisation. The winner is confirmed through the full two-stage pipeline in both directions before France gets
   it. SageMaker Automatic Model Tuning would run the same kind of search, but the account's SageMaker training quota is
-  still 0 (requests pending since 09:28 IST), so it runs on the EC2 runner.
+  still 0 (requests pending since 09:28 IST), so it runs on the EC2 runner. The unseen country's log loss is about 4×
+  the in-country one (US→India 0.148 against 0.038; India→US 0.133 against 0.040). The first random trials were worse
+  than the current parameters (0.159, 0.179 against 0.1407), and the search was stopped after 3 trials for the finding
+  below, which targets France directly.
+- **Why France fails: its house numbers are filtered out as "frequent".** A per-feature shift test (Kolmogorov–Smirnov,
+  150k rows per group: train against French test candidates, and US against India) puts the address features on top.
+  The distinctive-address length is 2 tokens for France against 3 (US) and 5 (India). The distinctive-address
+  similarity has a median of 100 for France against 88.9 and 77.1, and `cos_addr` a median of **1.0** against 0.83
+  and 0.87. French addresses do have numbers (99.6% of S1 records). But small numbers are common in France: 30
+  numeric tokens ('1'…'12' at 2–3.5% each) appear in over 1% of French S1 addresses. So the blocking IDF cap and the
+  distinctive-part filter (tokens in over 1% of a country's records) both drop them.
+
+| Candidates with… | France (test) | India | US |
+|---|---:|---:|---:|
+| identical address vector (`cos_addr` = 1) | **64%** | 34% | 33% |
+| … and disjoint house numbers (`num_jacc` = 0) | **19.3%** | 1.9% | 0.006% |
+
+  In training that combination is rare (US: 189 rows; India: 42,849 rows, of which only 5.6% are true links), so the
+  model reads a same-street lookalike with another number as the same address. That is 1 French candidate in 5.
+- **FEAT-v5 (M-v21 = BLK-v5-tlu40 + FEAT-v5 + MATCH-v6):** numbers are never frequent tokens (the distinctive parts keep
+  the house number, French frequent address tokens 83 → 52), plus `addr_twin_num_diff` = identical address vector but
+  disjoint numbers. Blocking is unchanged (cos_addr keeps the IDF cap), so the candidates are M-v11's.
 
 ### Model families and loss functions, chosen from the data — M-v13 to M-v18
 
