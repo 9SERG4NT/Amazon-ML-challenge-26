@@ -47,18 +47,33 @@ the previous stage's files from `--work`, so an interrupted run resumes where it
 Every component is a named version in `src/ber/versions.py`, using the IDs of the
 experiment log (`method_result.md`). A run is one combination of the four:
 
-| Component | Stage | Current |
+| Component | Stage | Current (preset M-v6) |
 |---|---|---|
 | NORM — normalisation and learned aliases | prep | NORM-v2 |
-| BLK — candidate generation | block | BLK-v4b@20 |
-| FEAT — pairwise features | features | FEAT-v2 |
-| MATCH — models and decision rule | train, predict | MATCH-v2 |
+| BLK — candidate generation | block | BLK-v4b@20-tlu40 (top-20, test-like train universe) |
+| FEAT — pairwise features | features | FEAT-v4 (65: number gaps, distinctive parts of names and addresses) |
+| MATCH — models and decision rule | train, predict | MATCH-v6 (two-stage LightGBM, 75% of entities fitted) |
+
+End-to-end presets (`--list` prints them all; the default stays M-v3, the first full-data run):
+
+| Preset | Components | Status |
+|---|---|---|
+| M-v3 | BLK-v4b@20, FEAT-v2, MATCH-v2 | FULL-v1, leaderboard 0.96 |
+| M-v5 | BLK-v4b@20-tlu40, FEAT-v3, MATCH-v6 | leaderboard 0.971 |
+| **M-v6** | BLK-v4b@20-tlu40, FEAT-v4, MATCH-v6 | test-like eval 0.9856; next submission |
+| M-v7 | BLK-v4b@20-dup2 (every distractor copied), FEAT-v4, MATCH-v6 | rejected: learns to spot the copies |
+| M-v8 / M-v9 | M-v7 with XGBoost (MATCH-v8) / a LightGBM + XGBoost blend (MATCH-v9) | built on M-v7's features, not run |
+| M-v10 | M-v6 with distractor rows weighted ×2 and the rule chosen on the doubled-distractor eval (MATCH-v10) | running |
 
 ```bash
 python run_pipeline.py --list                          # every version and preset
-python run_pipeline.py ... --preset M-v4               # another end-to-end version
-python run_pipeline.py ... --feat FEAT-v3 --stages features,train,predict   # swap one component
+python run_pipeline.py ... --preset M-v6               # an end-to-end version
+python run_pipeline.py ... --preset M-v6 --match MATCH-v10 --stages train,predict   # swap one component, reuse the rest
 ```
+
+MATCH versions can also switch the model family (`algo="xgb"`, XGBoost, Apache-2.0), blend two
+runs on the same features (`blend_of`), weight distractor rows (`distractor_weight`) and score an
+old run's models in a new universe (`frozen_from`).
 
 Each stage caches its output under the versions it depends on (for example
 `work/block/NORM-v2__BLK-v4b@20/`), so swapping the matcher reuses the blocking, and a new
@@ -73,6 +88,20 @@ rest 45%. All entities stay in the candidate search, so targets are contested as
 at test time. Aliases and region merges are learned without the evaluation entities' links,
 and the models are cross-fitted, so evaluation rows are scored exactly like test rows. The
 decision rule and its parameter are chosen on the evaluation slice.
+
+The test differs from train in its distractors (records that match nothing), so validation
+rebuilds that part of it:
+
+- **Test-like universe** (`keep_nonevals`, BLK-v4b@20-tlu40): every eval S1 stays, 40% of the
+  other train S1 entities stay with their true targets, and every distractor stays. That gives
+  2.34 distractors per S1, as in the test (train: 1.2).
+- **Doubled-distractor eval** (reported for every run; MATCH-v10 chooses its rule on it): each
+  link to a distractor counts twice. The test's distractors copy present S1 records (same name,
+  same street, a nearby house number) as often as train's, so it has twice the hard lookalikes
+  per S1, which the test-like universe does not recreate.
+- **Test profile check:** each run logs the share of test S1 linked and the links per S1 by
+  country, to compare with the eval truth (~94% linked, ~3.4 links). M-v7 passed its eval but
+  failed this check (98.5%, 4.2).
 
 ## Layout
 
