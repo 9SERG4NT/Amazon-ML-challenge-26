@@ -233,6 +233,18 @@ evaluation links, and evaluation rows are scored exactly like test rows.
     invented names, typo-heavy names.
   - 26% were taken by another Source 1 entity. 91% of these are targets without an address whose
     name several Source 1 entities share, which is mostly irreducible.
+- **The unseen country.** The evaluation slice cannot score France, which is 15% of the test entities and has no
+  training links. Leave-one-country-out runs measure what an unseen country costs. A matcher fitted on the US
+  alone scores India at 0.9444 (0.9817 when India is fitted), and one fitted on India scores the US at 0.9637 (0.9879),
+  in precision and recall alike. No decision rule recovers it (the best rule on India's own labels: 0.9446). We tried
+  three remedies, none of which moved the evaluation:
+  - self-training on the unseen country's confident candidates: +0.0014 on India;
+  - a hyperparameter search scored across countries (Optuna, with monotone constraints and extra-trees in the space);
+  - keeping small house numbers, which France's frequency filters dropped. 19.3% of French candidates looked like
+    the same address with another number, but the final model already linked only 0.46% of such pairs.
+
+  French predictions read correctly on inspection. This is the most likely part of the gap between the evaluation
+  (0.985) and the leaderboard (0.970).
 - **Common false positives (wrong merges):** 85% are distractors that look like a copy of the
   Source 1 record: the same name at a nearby number, the same number with a unit letter
   ("3027 c douglas ave"), or a name variant at the same address. In France, the same generic

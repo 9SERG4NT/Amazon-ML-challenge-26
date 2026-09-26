@@ -206,6 +206,22 @@ Copy the template below for each run, newest entry first. Record every run, incl
 - **FEAT-v5 (M-v21 = BLK-v5-tlu40 + FEAT-v5 + MATCH-v6):** numbers are never frequent tokens (the distinctive parts keep
   the house number, French frequent address tokens 83 → 52), plus `addr_twin_num_diff` = identical address vector but
   disjoint numbers. Blocking is unchanged (cos_addr keeps the IDF cap), so the candidates are M-v11's.
+- **M-v21 result: no measurable change.** Eval F0.5 **0.9854** (P 0.9961, R 0.9640; India 0.9818, US 0.9878), identical to
+  M-v11. The test profile is unchanged too (France 93.9% linked, 3.14 links per S1). **M-v11 had already avoided the
+  twins:** only **0.46%** of its French links are twin pairs, although twins are 19.3% of French candidates. The
+  house-number features did the job that the address cosine could not. M-v21 lowers that share to 0.43% and changes
+  about 1.5% of French links (5.6k removed, 6.9k added, of 813k). The quirk is real but not where France loses.
+- **Reading French predictions** (12 random French S1 records with every candidate, p2 and the links). The links are
+  the same business under typos and format changes ("#15 R. Des Ecachoirs", "Communale Slnfe", "Zetagild f/k/a Lille
+  Loisirs SARL", "0067 Ave De Gradignan"). The rejected candidates are the planted lookalikes: the same name at another
+  number ("… Holding SARL | 72 Rue Violette" for 71), or another name at the same address ("Communale Amicale"). No
+  systematic error is visible. The open cases are same-name targets without an address, with a different legal form
+  ("Saint-Herblain Parents SCI | None"), which the model leaves out (p2 0.004–0.06).
+- **Conclusion for tonight.** A single-country model loses 0.024–0.037 on an unseen country, but M-v11 learns from two
+  and behaves sensibly on France. Self-training (+0.0014 on the India stand-in), the transfer search and FEAT-v5
+  (no change) give nothing measurable, so **M-v11 stays the final submission** (leaderboard 0.970, 6.5 candidates per
+  S1). The eval–leaderboard gap (0.985 against 0.970) remains only partly explained. Its likely parts are France's
+  unmeasured score and the test's denser lookalikes, which the doubled-distractor eval approximates only leniently.
 
 ### Model families and loss functions, chosen from the data — M-v13 to M-v18
 
