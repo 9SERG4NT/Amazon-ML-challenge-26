@@ -25,7 +25,13 @@ in git: `*.tsv` is ignored outside the top of this folder, and `candidate_pairs.
 | M-v6 (Kaggle TPU run) | `NORM-v2__BLK-v4b@20-tlu40__FEAT-v4__MATCH-v6` | test-like | 0.9856 | pending | `f055edc3edaeb41e0204d35dae4be8e9` |
 | **M-v11** (EC2, current) | `NORM-v2__BLK-v5-tlu40__FEAT-v4__MATCH-v6` | test-like | 0.9854 | **0.970** | `f96f52d773991cc04870a36cf4b3ed46` |
 | M-v7 (rejected, not downloaded) | `NORM-v2__BLK-v4b@20-dup2__FEAT-v4__MATCH-v6` | doubled distractors (copies) | 0.9856 | not submitted | — |
+| **M-v25** (EC2: M-v11 + a cross-encoder feature) | `NORM-v2__BLK-v5-tlu40__FEAT-v6__MATCH-v6` | test-like | **0.9875** | pending | `6457acf27c2cfc69f83bd12630ead0d6` |
 | **Team pipeline B, run R5** (Kaggle, teammates; best) | `TEAM-B-R5__e5-FAISS__XGBoost-CE` | their own 10% held out | 0.9875 (not comparable) | **0.98** | `67bdd7f85c52d143128e40dff42418eb` |
+
+**M-v25 (our best eval, leaderboard pending).** M-v11 plus one feature: a 4-layer BERT cross-encoder's match
+probability for the pair (ce1, cross-fitted, trained on the runner's CPU). Eval F0.5 **0.9875** against M-v11's 0.9854
+(doubled-distractor 0.9870, singletons 0.9928, India 0.9851, US 0.9891). Same candidate file as M-v11 (md5 `64f56033…`).
+Test profile: France 94.5% linked with 3.28 links per S1 (M-v11 3.13; the label-free estimate is 3.31).
 
 **TEAM-B-R5 (the teammates' pipeline, leaderboard 0.98, the best so far).** A fine-tuned e5-small bi-encoder with FAISS search for
 blocking (5.95 candidates per test S1), then XGBoost with a cross-encoder score and expected-F selection. Its folder

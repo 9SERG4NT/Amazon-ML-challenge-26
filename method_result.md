@@ -101,6 +101,7 @@ Unless noted, the scores are on the DEV-10 **evaluation slice**: 20% of the DEV-
 | **M-v6** | 2026-09-26 | M-v5 with FEAT-v4 (distinctive-part features); gated expected-F (gate 0.5). Test-like eval slice | 98.69% | 47.8 | **0.9856** | 0.9960 | 0.9647 | 0.9812 / 0.9859 | pending | India 0.9822, US 0.9878. Changes 6.9% of French S1's link sets (US/India 3.4–3.6%). Kaggle TPU run |
 | **M-v11** | 2026-09-26 | M-v6 behind the learned candidate filter (BLK-v5-tlu40): 6.5 candidates per test S1 instead of 48.1; expected-F (0.4). Test-like eval slice | 98.21% | 6.0 | **0.9854** | 0.9962 | 0.9639 | 0.9816 / 0.9856 | **0.970** (public) | Doubled-distractor 0.9845. India 0.9817, US 0.9879. Test profile as M-v6's. EC2 |
 | M-v7 | 2026-09-26 | Full universe with every distractor copied (BLK-v4b@20-dup2) + FEAT-v4 + MATCH-v6 | 98.17% | 47.5 | 0.9856 | 0.9978 | 0.9599 | 0.9924 / 0.9852 | not submitted | **Rejected:** the model learned to spot the copies and over-links the test (98.5% of S1, 4.20 links each) |
+| **M-v25** | 2026-09-27 | M-v11 + ce1: a 4-layer BERT cross-encoder's match probability for the pair (FEAT-v6), cross-fitted on two halves of the fit entities; gated expected-F (gate 0.6). Test-like eval slice | 98.21% | 6.0 | **0.9875** | 0.9979 | 0.9664 | 0.9928 / 0.9872 | pending | Doubled-distractor 0.9870. India 0.9851, US 0.9891. Stage 1 alone 0.9861 (M-v11's 0.9833). Test: France 94.5% linked, 3.28 links per S1 (M-v11 3.13). Same candidates as M-v11 |
 | TEAM-B-R5 (teammates) | 2026-09-26 | The team's second pipeline: fine-tuned e5-small bi-encoder + FAISS blocking, graph filter, XGBoost with a cross-encoder score, expected F0.5, French logit shift. **Their own validation** (10% of train S1 held out), not comparable with the rows above | 98.16% | 4.78 | 0.9875 | — | — | 0.9850 / 0.9876 | pending | 5.95 candidates per test S1. Links more than M-v11 (France 3.17 against 3.13 per S1). See section 5 |
 
 ---
@@ -180,7 +181,28 @@ Copy the template below for each run, newest entry first. Record every run, incl
 | ce2: multilingual-e5-small, raw text | Kaggle 2× T4 (first run) | 800k | **0.0518 / 0.0521** | **98.1% / 98.1%** |
 
   For comparison, M-v11's full stage-1 LightGBM reaches about 0.040 on the same kind of rows. A text model alone is
-  close to it, and it is a very different signal.
+  close to it, and it is a very different signal. On all 2.65M eval pairs, ce1 alone reaches log loss 0.0612
+  (accuracy 97.8%).
+- **M-v25 (M-v11 + ce1) — the largest gain since the test-like universe: eval F0.5 0.9854 → 0.9875 (+0.0021).**
+
+| Eval slice (441,521 S1) | M-v11 | M-v25 |
+|---|---:|---:|
+| F0.5 | 0.9854 | **0.9875** |
+| Doubled-distractor F0.5 | 0.9845 | **0.9870** |
+| Precision / recall | 0.9962 / 0.9639 | **0.9979 / 0.9664** |
+| Singletons / others | 0.9816 / 0.9856 | **0.9928 / 0.9872** |
+| India / US | 0.9817 / 0.9879 | **0.9851 / 0.9891** |
+| Stage 1 alone (p1, best rule) | 0.9833 | 0.9861 |
+
+  The rule chosen on p2 is gated expected-F with gate 0.6. The cross-encoder mostly buys precision on the
+  hard lookalikes (singletons +0.011: fewer false links for S1 records with no match), and India gains most
+  (+0.0034), the country with transliterated and Devanagari names. Train and predict took 7 minutes on the runner.
+  **Test:** 5,750,945 links. France 94.5% of S1 linked with 3.28 links per S1 (M-v11 93.9%, 3.13; the label-free
+  estimate of the truth is 3.31). India 94.0%, 3.29; US 94.2%, 3.38. The validator passes, and the candidate file is
+  M-v11's. Files: `output/runs/NORM-v2__BLK-v5-tlu40__FEAT-v6__MATCH-v6/` (md5 `6457acf2…`).
+- **Kaggle run 3** (texts prepared in their own process, training tokenised per batch, scores saved chunk by chunk
+  under /kaggle/working) started at 03:36 IST. Run 2 had lost one worker to memory while training. Its surviving
+  worker trained the best text model so far: held-out log loss 0.0452 (98.25%) on 1.2M pairs.
 
 ### Our stage 2 on top of the team's pipeline (`experiments/stack_stage2.py`)
 

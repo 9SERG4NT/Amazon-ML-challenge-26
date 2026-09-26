@@ -68,7 +68,9 @@ current best (presigned GET + curl), and check the md5 against the runner. `outp
 which replaced M-v5 (eval 0.9852, LB 0.971, md5 `9c66b928…`, kept in `output/runs/`). The teammates' pipeline
 (TEAM-B-R5: e5 bi-encoder + FAISS blocking, XGBoost with a cross-encoder score; their own validation 0.9875, not
 comparable; 5.95 candidates per S1; leaderboard pending) is in `output/runs/TEAM-B-R5__e5-FAISS__XGBoost-CE/`, its CSV
-converted to TSV (md5 `67bdd7f8…`, validator PASS). The remaining gap is most likely France (implied ~0.89): next is M-v6 (FEAT-v4). Before it came FULL-v1
+converted to TSV (md5 `67bdd7f8…`, validator PASS). **M-v25** (M-v11 + a cross-encoder pair score, FEAT-v6) has our
+best eval, **0.9875** (M-v11 0.9854), same candidates as M-v11; its TSVs are in
+`output/runs/NORM-v2__BLK-v5-tlu40__FEAT-v6__MATCH-v6/` (md5 `6457acf2…`, leaderboard pending). The remaining gap is most likely France (implied ~0.89): next is M-v6 (FEAT-v4). Before it came FULL-v1
 (`predictions/M-v3/`, eval F0.5 0.9813, **public leaderboard 0.96**; top of the board 0.99),
 which is kept in `output/runs/`.
 Output naming: `output/matching_results.tsv` and `output/candidate_pairs.tsv` are the current submission
