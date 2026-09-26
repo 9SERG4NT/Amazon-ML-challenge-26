@@ -19,8 +19,8 @@ import time
 import urllib.request
 
 CONFIG = {"model": "intfloat/multilingual-e5-small",  # MIT, 118M parameters
-          "n_train": 1_000_000, "epochs": 1.0, "batch": 256, "lr": 5e-5, "max_len": 64, "score_batch": 1024,
-          "name": "ce2", "commit": "5acc8e84949525e3836a832a81a5ea98dedaf426"}
+          "n_train": 800_000, "epochs": 1.0, "batch": 256, "lr": 5e-5, "max_len": 64, "score_batch": 1024,
+          "name": "ce2", "mean_both_single_gpu": False, "commit": "5acc8e84949525e3836a832a81a5ea98dedaf426"}
 CONFIG.update(json.loads(os.environ.get("CE_CONFIG", "{}")))  # overrides for a local test
 SRC = ("https://raw.githubusercontent.com/9SERG4NT/Amazon-ML-challenge-26/{commit}/code/business_entity_resolution/src/"
        "experiments/cross_encoder.py")
@@ -52,7 +52,7 @@ tok.save_pretrained(f"{c['out']}/{c['name']}_fold{k}")
 kw = dict(batch=c["score_batch"], max_len=c["max_len"], device="cuda", half=True)
 for split in ("train", "test"):
     S = D if split == "train" else pl.read_parquet(f"{TMP}/test.parquet")
-    m = (S["half"] == 1 - k) | (S["half"] < 0)
+    m = (S["half"] == 1 - k) | ((S["half"] < 0) & ((k == 0) | c.get("two_gpus", True) | c.get("mean_both_single_gpu", False)))
     sub = S.filter(m)
     CE.log(f"worker {k}: scoring {sub.height:,} {split} pairs")
     np.save(f"{TMP}/w{k}_{split}.npy", CE.score(model, tok, sub["qtext"].to_list(), sub["ttext"].to_list(), **kw))
@@ -132,6 +132,7 @@ if __name__ == "__main__":
     import torch
     n_gpu = torch.cuda.device_count()
     log(f"{n_gpu} GPUs")
+    CONFIG["two_gpus"] = n_gpu >= 2
     cmd = lambda k: [sys.executable, "-u", f"{TMP}/ce_worker.py", str(k), json.dumps(CONFIG)]
     if n_gpu >= 2:  # one half per GPU, in parallel
         procs = [subprocess.Popen(cmd(k), env={**os.environ, "CUDA_VISIBLE_DEVICES": str(k)}) for k in (0, 1)]

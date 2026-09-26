@@ -276,6 +276,10 @@ Copy the template below for each run, newest entry first. Record every run, incl
 | M-v24-us | LightGBM + XGBoost, US → India | US 0.9878 | | India **0.9430** | 94.6%, 3.28 |
 | M-v24-in | LightGBM + XGBoost, India → US | India 0.9817 | | US **0.9651** | 94.0%, 3.10 |
 | MATCH-v3 on BLK-v5 | support features (MATCH-v2: fit 30%, lr 0.05) | 0.9850 | 0.9840 | — | 94.1%, 3.16 |
+| MATCH-v4 on BLK-v5 | MATCH-v2 + LightGBM prediction early stopping | 0.9846 | 0.9835 | — | 94.1%, 3.16 |
+| MATCH-v2 on BLK-v5 | two stages, fit 30%, lr 0.05 | 0.9846 | 0.9835 | — | 94.1%, 3.16 |
+| MATCH-v5 on BLK-v5 | MATCH-v2 with lr 0.1 | 0.9845 | 0.9834 | — | 94.0%, 3.16 |
+| MATCH-v1 on BLK-v5 | stage 1 only, threshold 0.675 | 0.9823 | 0.9808 | — | 94.0%, 3.15 |
 
   Covariate-shift weighting helps one direction (+0.0025) and hurts the other (−0.0040): not reliable, not used. XGBoost
   and the LightGBM + XGBoost blend tie M-v11 on the eval. Since the eval is saturated (more than a dozen variants at
@@ -287,6 +291,15 @@ Copy the template below for each run, newest entry first. Record every run, incl
   family is a safer bet for France. In-country scores tie as well (US 0.9877–0.9878, India 0.9815–0.9817).
   **M-v11 stays the submission.** MATCH-v3's support features do not make up for fitting on 30% of the entities
   instead of 75% (0.9850 against 0.9854).
+- **The older matchers, now all measured on the same candidates:** fitting on 75% of the entities instead of 30% is
+  worth +0.0009 (M-v11 0.9854 against MATCH-v2 0.9846), and the second stage +0.0023 (MATCH-v2 against the stage-1-only
+  MATCH-v1, 0.9823). MATCH-v4's prediction early stopping costs nothing measurable (0.9846), and lr 0.1 against 0.05
+  is a tie (MATCH-v5 0.9845).
+- **Transfer ablation (`experiments/transfer_ablation`):** no group of features hurts the unseen country. Dropping any
+  group raises the unseen-country log loss (baseline 0.1407; without the number features 0.2022). So the transfer loss
+  is not one bad group of features. **In-country Optuna (`tune_lgb`, 39 trials):** log loss 0.03970 → 0.03933 (−0.9%)
+  with 197 leaves, min_data 60, feature_fraction 0.61, lambda_l2 0.12. The gain is small and not run end to end.
+  chain15 was stopped before M-v10 at the user's choice (22:51 IST).
 
 ### The unseen country — leave-one-country-out (M-v19) and self-training (M-v20)
 
