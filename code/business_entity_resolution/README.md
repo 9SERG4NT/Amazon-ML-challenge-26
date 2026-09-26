@@ -66,6 +66,9 @@ End-to-end presets (`--list` prints them all; the default stays M-v3, the first 
 | M-v10 | M-v6 with distractor rows weighted ×2 and the rule chosen on the doubled-distractor eval (MATCH-v10) | running |
 | **M-v11** | M-v6 on the filtered candidates (BLK-v5-tlu40: 6.5 per S1 instead of 48.1) | eval 0.9854; next submission |
 | M-v12 to M-v18 | on M-v11's candidates: distractors ×2 (MATCH-v10), neural network (v13), CatBoost (v15), metric-aligned loss (v17), blends (v14, v16, v18) | eval 0.9825–0.9854: none beats M-v11 |
+| M-v19-us / M-v19-in | leave-one-country-out diagnostic (`train_countries`): fit one country, score the other as unseen | India unseen 0.9444, US unseen 0.9637 |
+| M-v20-us / M-v20 | self-training on the unseen country (`self_train`), checked on India, applied to France | +0.0014 on India |
+| M-v21 | FEAT-v5: house numbers kept in the distinctive parts + `addr_twin_num_diff` | eval 0.9854, same as M-v11 |
 
 ```bash
 python run_pipeline.py --list                          # every version and preset

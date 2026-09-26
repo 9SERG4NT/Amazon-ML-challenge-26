@@ -40,6 +40,7 @@ normalise ──> block ──> features ──> LightGBM stage 1 ──> stage 
 | M-v7: every distractor copied | copies | 0.9856 | 0.9978 | 0.9599 | rejected |
 | **M-v11: M-v6 behind a learned candidate filter (6.5 candidates per S1 instead of 48)** | test-like | 0.9854 | 0.9962 | 0.9639 | **0.970** (submitted) |
 | M-v12 to M-v18: distractor weights ×2, a metric-aligned loss, a neural network (Adam), CatBoost, blends (all on M-v11's candidates) | test-like | 0.9825–0.9854 | | | none beats M-v11 |
+| M-v19 to M-v21: unseen-country diagnosis (fit one country, score the other: −0.024 to −0.037), self-training, French house-number fix | test-like | 0.9853–0.9854 | | | no measurable gain; M-v11 stays |
 
 Rows with different eval data are not comparable. What the leaderboard taught us:
 
@@ -50,6 +51,9 @@ Rows with different eval data are not comparable. What the leaderboard taught us
    street, nearby house number) as often as train's. So the test has twice the hard lookalikes
    per S1. The test-like universe only doubled easy, orphaned ones, so its eval (0.985) is still
    optimistic in every country.
+4. **The unseen country.** A model fitted on one country loses 0.024–0.037 on the other, so France (15% of the
+   test, no training links) is the likeliest part of the remaining gap (eval 0.985 against leaderboard 0.970).
+   Self-training, a search tuned across countries and a French house-number fix did not move the eval.
 3. **M-v7 copied every distractor to double the lookalikes.** The model learned to recognise the
    exact copies and over-linked the test (98.5% of S1 linked against ~94%), so it was not
    submitted. M-v10 gets the same density from training weights, with no copies.
