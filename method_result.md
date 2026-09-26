@@ -175,6 +175,21 @@ Copy the template below for each run, newest entry first. Record every run, incl
   copied universe, and M-v4 needs the full-train universe (worse on the leaderboard), so their matchers run on the
   current candidates instead. The frozen diagnostics (MATCH-v2-frozen, MATCH-v6-frozen-tlu) need fold models from the
   suspended account and from the Kaggle session, so they are not run. Queue: chain14 on the runner.
+- **Results (full data, eval slice as always; unseen = the held-out country's eval):**
+
+| Run | What | Eval F0.5 | Doubled-distractor | Unseen country | Test: France linked, links / S1 |
+|---|---|---:|---:|---:|---|
+| M-v11 | LightGBM (reference) | 0.9854 | 0.9845 | — | 93.9%, 3.13 |
+| MATCH-v8 on BLK-v5 | XGBoost | 0.9853 | 0.9843 | — | 93.9%, 3.13 |
+| MATCH-v9 on BLK-v5 | LightGBM + XGBoost | **0.9855** | 0.9845 | — | 93.8%, 3.13 |
+| M-v19-us → M-v22-us | + covariate-shift weights, US → India | US 0.9874 | | India **0.9404** (0.9444 without) | |
+| M-v19-in → M-v22-in | + covariate-shift weights, India → US | India 0.9807 | | US **0.9662** (0.9637 without) | |
+| M-v22 | + covariate-shift weights toward France | 0.9853 (US and India) | | — | 93.9%, 3.12 |
+
+  Covariate-shift weighting helps one direction (+0.0025) and hurts the other (−0.0040): not reliable, not used. XGBoost
+  and the LightGBM + XGBoost blend tie M-v11 on the eval. Since the eval is saturated (more than a dozen variants at
+  0.9854 ± 0.0003), the next check is whether the blend *transfers* better to an unseen country: M-v23 (XGBoost fitted
+  on one country) and M-v24 (its blend with M-v19's LightGBM), both ways (chain15).
 
 ### The unseen country — leave-one-country-out (M-v19) and self-training (M-v20)
 
