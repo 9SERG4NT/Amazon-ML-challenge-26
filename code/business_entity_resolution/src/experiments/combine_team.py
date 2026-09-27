@@ -138,6 +138,7 @@ def main() -> None:
     ap.add_argument("--folds", type=int, default=5)
     ap.add_argument("--threads", type=int, default=0)
     ap.add_argument("--force", action="store_true")
+    ap.add_argument("--france-shift", default="none", help="'auto' (the team's empty-share calibration), a number, or 'none'")
     a = ap.parse_args()
     out, team = Path(a.out), Path(a.team)
     out.mkdir(parents=True, exist_ok=True)
@@ -193,9 +194,35 @@ def main() -> None:
     Xt = U.select(feats).to_numpy().astype(np.float32)
     pt = np.mean([m.predict(Xt, num_iteration=m.best_iteration, num_threads=a.threads) for m in models], axis=0)
     U = U.with_columns(pl.Series("p_comb", pt))
+    U.select("s1_id", "cand_id", "p_comb").write_parquet(out / "test_scores.parquet")
     rule = res["p_comb"]["rule"]
-    pred = decide(U, "p_comb", *rule)
     S1 = pl.read_csv(a.s1, separator="\t", quote_char=None, columns=["entity_id", "country"]).rename({"entity_id": "s1_id"})
+    if a.france_shift != "none":  # label-free: shift French logits until France's no-match share equals the others'
+        base = U.join(S1, on="s1_id", how="left")
+        q = pl.col("p_comb").clip(1e-6, 1 - 1e-6)
+        shifted = lambda d: base.with_columns(pl.when(pl.col("country") == "France")
+                                              .then(1 / (1 + (-((q / (1 - q)).log() - d)).exp()))
+                                              .otherwise(pl.col("p_comb")).alias("p_comb"))
+        n_fr = S1.filter(pl.col("country") == "France").height
+
+        def empty_share(d: float) -> tuple[float, float]:
+            linked = decide(shifted(d), "p_comb", *rule).select("s1_id").unique().join(S1, on="s1_id")
+            l_fr = linked.filter(pl.col("country") == "France").height
+            return 1 - l_fr / n_fr, 1 - (linked.height - l_fr) / (S1.height - n_fr)
+
+        if a.france_shift == "auto":  # bisection on the logit shift
+            lo, hi = -2.0, 6.0
+            for _ in range(14):
+                mid = (lo + hi) / 2
+                fr_e, ot_e = empty_share(mid)
+                lo, hi = (mid, hi) if fr_e < ot_e else (lo, mid)
+            d = (lo + hi) / 2
+        else:
+            d = float(a.france_shift)
+        fr_e, ot_e = empty_share(d)
+        log(f"French logit shift {d:.3f}: no-match share France {fr_e:.4f}, others {ot_e:.4f}")
+        U = shifted(d).drop("country")
+    pred = decide(U, "p_comb", *rule)
     lists = lambda d, name: (S1.select("s1_id").join(d.group_by("s1_id").agg(pl.col("cand_id").sort().str.join(",").alias("m")),
                                                      on="s1_id", how="left")
                              .select(pl.col("s1_id").alias("source1_entity_id"), pl.col("m").fill_null("").alias(name)))
