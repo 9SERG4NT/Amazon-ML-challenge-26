@@ -148,6 +148,23 @@ Copy the template below for each run, newest entry first. Record every run, incl
 - Next step:
 -->
 
+### Combining our pipeline with the team's (`experiments/combine_team.py`)
+
+- **Date:** 2026-09-27, 11:30 IST. Leaderboard: the team's run 0.980, M-v28 0.978. The two pipelines differ in
+  candidate search (sparse IDF against a fine-tuned dense bi-encoder), features and learner (LightGBM against XGBoost),
+  so a learned combination should beat both. The team's notebook was edited to save its validation and test pair
+  scores with id maps, and to finish its cross-encoder training (`--ce-pairs 2500000 --ce-minutes 60`). The user runs
+  it in the teammate's Kaggle account, since the notebook and its stage-1 input are not visible to `serg4nt`.
+- **Method:** the union of both candidate sets; per pair, each side's probability (missing when that side's search did
+  not find the pair), flags, and each side's competition context (rank and margin within the S1, margin over the best
+  other S1 claiming the record). A LightGBM is cross-fitted (5 folds by S1) on the S1 entities that both pipelines
+  held out: the team's validation 10% that are also in our test-like universe, where our scores are out-of-fold. The
+  rule is chosen on the out-of-fold scores and compared with each side alone on the same entities. Output only if
+  the combination wins. The candidate file is the union.
+- **Dry run at full scale** (a stand-in "team" built from M-v11's scores in the team's file format, against M-v28):
+  114,638 shared validation S1 and 686,676 union pairs. M-v11 0.9852, M-v28 0.9885, their mean 0.9881, the combiner
+  0.9885 (as expected: M-v11 adds nothing to M-v28). Test: 11.19M union pairs. **1 min 16 s, 9.1 GB peak.**
+
 ### A cross-encoder feature, the team pipeline's main idea (FEAT-v6 / FEAT-v7 → M-v25 / M-v26)
 
 - **Date:** 2026-09-26, 22:30 IST (deadline: 2026-09-27 midnight). The team's cross-encoder carries 75% of its XGBoost
