@@ -87,7 +87,7 @@ def exclusive(s: pl.DataFrame, col: str) -> pl.DataFrame:
 
 
 def expected_f(s: pl.DataFrame, col: str, floor: float) -> pl.DataFrame:
-    s = s.filter(pl.col(col) >= floor).sort(["s1_id", col], descending=[False, True])
+    s = s.filter(pl.col(col) >= floor).sort(["s1_id", col, "cand_id"], descending=[False, True, False])
     s = s.with_columns(pl.col(col).cum_sum().over("s1_id").alias("cum_p"), pl.int_range(1, pl.len() + 1).over("s1_id").alias("k"),
                        pl.col(col).sum().over("s1_id").alias("sum_p"),
                        (1 - pl.col(col)).log().sum().over("s1_id").exp().alias("ef0"),
@@ -146,7 +146,7 @@ def main() -> None:
     Tv = team_pairs(team, "train")
     Ov = pl.read_parquet(a.ours_train).select("s1_id", "cand_id", pl.col("p").cast(pl.Float64))
     shared = (Tv.filter(pl.col("is_val")).select("s1_id").unique()
-              .join(Ov.select("s1_id").unique(), on="s1_id", how="semi")["s1_id"])
+              .join(Ov.select("s1_id").unique(), on="s1_id", how="semi")["s1_id"].sort())  # sorted: same folds on every run
     log(f"team validation S1 {Tv.filter(pl.col('is_val'))['s1_id'].n_unique():,}; in our universe too: {shared.len():,}")
     gt = (pl.read_csv(a.truth, separator="\t", quote_char=None, schema_overrides={"matched_entity_ids": pl.Utf8})
           .rename({"source1_entity_id": "s1_id"}).filter(pl.col("s1_id").is_in(shared.implode())))
@@ -162,7 +162,7 @@ def main() -> None:
 
     rng = np.random.default_rng(42)
     fold_of = pl.DataFrame({"s1_id": shared, "fold": rng.integers(0, a.folds, shared.len())})
-    V = V.join(fold_of, on="s1_id", how="left")
+    V = V.join(fold_of, on="s1_id", how="left").sort(["s1_id", "cand_id"])
     X, y, fold = V.select(feats).to_numpy().astype(np.float32), V["y"].to_numpy(), V["fold"].to_numpy()
     p = np.zeros(V.height)
     models = []
@@ -190,7 +190,7 @@ def main() -> None:
 
     Tt = team_pairs(team, "test")
     Ot = pl.read_parquet(a.ours_test).select("s1_id", "cand_id", pl.col("p").cast(pl.Float64))
-    U = union_features(Tt, Ot, None)
+    U = union_features(Tt, Ot, None).sort(["s1_id", "cand_id"])
     Xt = U.select(feats).to_numpy().astype(np.float32)
     pt = np.mean([m.predict(Xt, num_iteration=m.best_iteration, num_threads=a.threads) for m in models], axis=0)
     U = U.with_columns(pl.Series("p_comb", pt))
