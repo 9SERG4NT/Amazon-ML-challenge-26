@@ -115,11 +115,19 @@ def decide(s: pl.DataFrame, col: str, rule: str, param: float) -> pl.DataFrame:
     return expected_f(s.join(top.select("s1_id"), on="s1_id", how="semi"), col, 0.05)
 
 
-def macro_f05(pred: pl.DataFrame, links: pl.DataFrame, ids: pl.Series) -> dict:
+def macro_f05(pred: pl.DataFrame, links: pl.DataFrame, ids: pl.Series, linked: pl.Series | None = None,
+              w: float = 1.0) -> dict:
+    """Macro F0.5; with w > 1, each predicted link to a distractor (a record in no train link) counts w times,
+    the test's doubled distractor density."""
     n_true = links.group_by("s1_id").len("n_true")
     hit = pred.join(links, on=["s1_id", "cand_id"], how="semi").group_by("s1_id").len("tp")
+    if linked is not None and w != 1.0:
+        pred = pred.with_columns(pl.when(pl.col("cand_id").is_in(linked.implode())).then(1.0).otherwise(w).alias("c"))
+        n_pred = pred.group_by("s1_id").agg(pl.col("c").sum().alias("n_pred"))
+    else:
+        n_pred = pred.group_by("s1_id").len("n_pred")
     e = (pl.DataFrame({"s1_id": ids}).join(n_true, on="s1_id", how="left")
-         .join(pred.group_by("s1_id").len("n_pred"), on="s1_id", how="left").join(hit, on="s1_id", how="left").fill_null(0))
+         .join(n_pred, on="s1_id", how="left").join(hit, on="s1_id", how="left").fill_null(0))
     e = e.with_columns(pl.when(pl.col("n_true") == 0).then((pl.col("n_pred") == 0).cast(pl.Float64))
                        .when(pl.col("n_pred") == 0).then(0.0)
                        .otherwise(1.25 * pl.col("tp") / (0.25 * pl.col("n_true") + pl.col("n_pred"))).alias("f"),
@@ -163,8 +171,8 @@ def adversarial(V: pl.DataFrame, U: pl.DataFrame, feats: list, train_s1: str, te
     return out
 
 
-def best_rule(U: pl.DataFrame, col: str, links, ids) -> tuple:
-    res = [((r, p), macro_f05(decide(U, col, r, p), links, ids)) for r, p in RULES]
+def best_rule(U: pl.DataFrame, col: str, links, ids, linked=None, w: float = 1.0) -> tuple:
+    res = [((r, p), macro_f05(decide(U, col, r, p), links, ids, linked, w)) for r, p in RULES]
     return max(res, key=lambda x: x[1]["f05"])
 
 
@@ -181,6 +189,8 @@ def main() -> None:
     ap.add_argument("--force", action="store_true")
     ap.add_argument("--extra", nargs=3, action="append", default=[], metavar=("NAME", "TRAIN", "TEST"),
                     help="a further scorer's pairs (s1_id, cand_id, p) for train and test; repeatable")
+    ap.add_argument("--distractor-weight", type=float, default=1.0,
+                    help="weight of pairs whose record is a distractor in training, and in the metric that picks the rule")
     ap.add_argument("--clip", type=float, default=0.0,
                     help="clip every input probability to [clip, 1 - clip]: removes the models' saturation constants, which "
                          "differ between out-of-fold (train) and fold-averaged (test) scores")
@@ -200,8 +210,11 @@ def main() -> None:
     shared = (Tv.filter(pl.col("is_val")).select("s1_id").unique()
               .join(Ov.select("s1_id").unique(), on="s1_id", how="semi")["s1_id"].sort())  # sorted: same folds on every run
     log(f"team validation S1 {Tv.filter(pl.col('is_val'))['s1_id'].n_unique():,}; in our universe too: {shared.len():,}")
-    gt = (pl.read_csv(a.truth, separator="\t", quote_char=None, schema_overrides={"matched_entity_ids": pl.Utf8})
-          .rename({"source1_entity_id": "s1_id"}).filter(pl.col("s1_id").is_in(shared.implode())))
+    gt_all = (pl.read_csv(a.truth, separator="\t", quote_char=None, schema_overrides={"matched_entity_ids": pl.Utf8})
+              .rename({"source1_entity_id": "s1_id"}))
+    linked = (gt_all.select(pl.col("matched_entity_ids").fill_null("").str.split(",")).explode("matched_entity_ids")
+              .filter(pl.col("matched_entity_ids") != "")["matched_entity_ids"].unique())  # every record linked to some S1
+    gt = gt_all.filter(pl.col("s1_id").is_in(shared.implode()))
     links = (gt.with_columns(pl.col("matched_entity_ids").fill_null("").str.split(",")).explode("matched_entity_ids")
              .filter(pl.col("matched_entity_ids") != "").select("s1_id", pl.col("matched_entity_ids").alias("cand_id")))
     load = lambda f: cp(pl.read_parquet(f).select("s1_id", "cand_id", pl.col("p").cast(pl.Float64)))
@@ -220,6 +233,9 @@ def main() -> None:
         import xgboost as xgb
     V = V.sort(["s1_id", "cand_id"])
     X, y = V.select(feats).to_numpy().astype(np.float32), V["y"].to_numpy()
+    wt = (np.where(V["cand_id"].is_in(linked).to_numpy(), 1.0, a.distractor_weight)
+          if a.distractor_weight != 1.0 else None)
+    W = lambda k: None if wt is None else wt[k]
     p = np.zeros(V.height)
     models = []  # (kind, model); a test pair's probability is their mean
     for r in range(a.seeds):  # r = 0 is COMB-v1/v2's single cross-fitting; further repeats average other fold splits
@@ -231,8 +247,9 @@ def main() -> None:
             tr, te = fold != f, fold == f
             es = tr & (rng.random(V.height) < 0.1)
             m = lgb.train({**PARAMS, "seed": 42 + r, "num_threads": a.threads},
-                          lgb.Dataset(X[tr & ~es], label=y[tr & ~es], feature_name=feats), 3000,
-                          valid_sets=[lgb.Dataset(X[es], label=y[es])], callbacks=[lgb.early_stopping(100, verbose=False)])
+                          lgb.Dataset(X[tr & ~es], label=y[tr & ~es], weight=W(tr & ~es), feature_name=feats), 3000,
+                          valid_sets=[lgb.Dataset(X[es], label=y[es], weight=W(es))],
+                          callbacks=[lgb.early_stopping(100, verbose=False)])
             pf = [m.predict(X[te], num_iteration=m.best_iteration, num_threads=a.threads)]
             models.append(("lgb", m))
             msg = f"seed {r} fold {f}: {m.best_iteration} trees"
@@ -250,8 +267,11 @@ def main() -> None:
 
     res = {}
     for col in ("p_team", "p_ours", "p_mean", "p_comb"):
-        r, m = best_rule(V, col, links, shared)
+        r, m = best_rule(V, col, links, shared, linked, a.distractor_weight)
+        dd = macro_f05(decide(V, col, *r), links, shared, linked, 2.0)["f05"]
+        m = {**macro_f05(decide(V, col, *r), links, shared), "f05_doubled_distractors": dd}
         res[col] = {"rule": r, **m}
+        log(f"  {col}: doubled-distractor F0.5 {dd:.5f}")
         log(f"shared validation, {col:7s}: {r[0]} {r[1]} -> F0.5 {m['f05']:.5f} P {m['precision']:.4f} R {m['recall']:.4f} "
             f"singletons {m['f05_singletons']:.4f}")
     (out / "combine_validation.json").write_text(json.dumps(res, indent=1, default=str))
