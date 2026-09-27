@@ -6,9 +6,10 @@ these exact names.
 
 **From 11:25 to 17:50 IST the top-level files were M-v28's** (public leaderboard 0.978, eval 0.9885, md5
 `21ce5362…`; kept in `runs/`). `Team_Sumukh_submission.zip` (repository root) is the final COMB-v2 package (54
-files, 87.1 MB, validator PASS, md5 `fb854bb4…`; everything under `code/business_entity_resolution/src/`, pipeline B in `src/team_pipeline/`), in the repository since 18:31 IST at the user's request.
+files, 87.1 MB, validator PASS, md5 `c1855b88…`; everything under `code/business_entity_resolution/src/`, pipeline B in `src/team_pipeline/`), in the repository since 18:31 IST at the user's request.
 
-**COMB-v2 (18:25 IST): the final submission; the two files at the top of this folder are COMB-v2's** (matching
+**COMB-v2 (18:25 IST): the final submission, public leaderboard 0.98476 (the last upload); the two files at the top
+of this folder are COMB-v2's** (matching
 md5 `8f85fe51…`, candidates `5213ea3b…`, validator PASS). It is COMB-v1 plus a pre-filter: union pairs that both
 pipelines score below 0.1 are dropped before the combination (cut-off chosen on the shared held-out entities).
 **3.68 candidates per S1 instead of 7.48** at the same held-out F0.5 (0.99139 vs 0.99140); 4.9% of test S1 have
@@ -36,7 +37,7 @@ in git: `*.tsv` is ignored outside the top of this folder, and `candidate_pairs.
 | M-v6 (Kaggle TPU run) | `NORM-v2__BLK-v4b@20-tlu40__FEAT-v4__MATCH-v6` | test-like | 0.9856 | pending | `f055edc3edaeb41e0204d35dae4be8e9` |
 | **M-v11** (EC2, current) | `NORM-v2__BLK-v5-tlu40__FEAT-v4__MATCH-v6` | test-like | 0.9854 | **0.970** | `f96f52d773991cc04870a36cf4b3ed46` |
 | M-v7 (rejected, not downloaded) | `NORM-v2__BLK-v4b@20-dup2__FEAT-v4__MATCH-v6` | doubled distractors (copies) | 0.9856 | not submitted | — |
-| **COMB-v2** (COMB-v1 + pre-filter 0.1: 3.68 candidates per S1; final, top-level files) | `COMB-v2__M-v29__TEAM-R6__fr-auto__pf0.1` | shared held-out S1 of both pipelines (87,911) | **0.9914** (0.99139) | not uploaded (same held-out score as COMB-v1) | `8f85fe5173080fdafc2437d65c0130d9` |
+| **COMB-v2** (COMB-v1 + pre-filter 0.1: 3.68 candidates per S1; final, top-level files) | `COMB-v2__M-v29__TEAM-R6__fr-auto__pf0.1` | shared held-out S1 of both pipelines (87,911) | **0.9914** (0.99139) | **0.98476** | `8f85fe5173080fdafc2437d65c0130d9` |
 | **COMB-v1** (learned combination of M-v29 and the team pipeline R6, France calibrated) | `COMB-v1__M-v29__TEAM-R6__fr-auto` | shared held-out S1 of both pipelines (87,911) | **0.9914** (M-v29 0.9885, team 0.9877 on the same S1) | **0.98462** | `c0b7f4515fba3e0358cbf2dfc39b2564` |
 | TEAM-R6 (the team pipeline, our Kaggle re-run) | `TEAM-R6__e5-FAISS__XGBoost-CE` | their own 10% held out | 0.9875 (not comparable) | not submitted | `4e5681a517441c308a965dc705fdcf0b` |
 | **M-v29** (M-v28 + the e5-base cross-encoder) | `NORM-v2__BLK-v5-tlu40__FEAT-v10__MATCH-v6` | test-like | **0.9887** | pending | `ff8c6886617af3a77cb02ee1d0b4f04d` |

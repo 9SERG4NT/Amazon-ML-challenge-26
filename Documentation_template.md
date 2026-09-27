@@ -20,8 +20,8 @@ Our submission combines the team's two complete pipelines.
 - **The combination (COMB-v2):** the union of both pipelines' candidates, minus the pairs that both reject
   (**3.7 per record**). A LightGBM reads both pipelines' probabilities and their competition context on these
   pairs and decides each entity's match list. It is trained on the training entities that both pipelines held
-  out, where it scores F0.5 **0.9914** (A alone 0.9885, B alone 0.9877). **Public leaderboard 0.98462** (measured
-  for COMB-v1, the same combination without the pre-filter, which has the same held-out score).
+  out, where it scores F0.5 **0.9914** (A alone 0.9885, B alone 0.9877). **Public leaderboard 0.98476** (COMB-v1,
+  the same combination without the pre-filter: 0.98462).
 
 The ideas that carry most of the accuracy:
 
@@ -45,7 +45,7 @@ The ideas that carry most of the accuracy:
   from 0.970 to 0.978; a third (multilingual-e5-base) added 0.0002 more (0.9887).
 - **Combining two different pipelines.** The two pipelines search differently (sparse tokens against dense
   embeddings) and each finds true links the other misses. Learning how to weigh them, on entities neither
-  had trained on, lifted recall at the same precision: 0.980 / 0.978 alone, **0.98462** combined.
+  had trained on, lifted recall at the same precision: 0.980 / 0.978 alone, **0.98476** combined.
 
 ---
 
@@ -328,8 +328,8 @@ evaluation links, and evaluation rows are scored exactly like test rows.
 ## 5. Results & Error Analysis
 
 - **F_0.5 Score (macro), final submission (COMB-v2): 0.9914** on the 87,911 training entities both pipelines held
-  out (precision 0.9981, recall 0.9773). **0.98462 on the public leaderboard** was measured for COMB-v1, the same
-  combination without the pre-filter, which scores the same held-out F0.5 (0.99140). It links 94.2% of the test
+  out (precision 0.9981, recall 0.9773). **0.98476 on the public leaderboard** (COMB-v1, the same combination without
+  the pre-filter: held-out 0.99140, leaderboard 0.98462). It links 94.2% of the test
   Source 1 records in every country, with 3.29–3.39 links each, from 3.68 candidates per record.
 - **Pipeline A alone (M-v28):** **0.9885** on the test-like evaluation slice (441,521 entities;
   precision 0.9983, recall 0.9682, singletons 0.9934; India 0.9864, US 0.9900; 0.9882 when
@@ -397,6 +397,7 @@ evaluation links, and evaluation rows are scored exactly like test rows.
 | **COMB-v1: learned combination** | entities both pipelines held out | **0.9914** | 0.9982 | 0.9772 |
 | **COMB-v1** | **public leaderboard** | **0.98462** | | |
 | **COMB-v2: + pre-filter, 3.68 candidates per record instead of 7.48 (submitted)** | entities both pipelines held out | **0.9914** | 0.9981 | 0.9773 |
+| **COMB-v2** | **public leaderboard** | **0.98476** | | |
 
 ---
 
@@ -424,12 +425,12 @@ on the leaderboard.
 
 The final lesson: two good pipelines built differently are worth more together than either tuned further. Each
 finds true links the other misses. A small model trained on entities that neither pipeline had seen learned how
-to weigh them, and moved the leaderboard score from 0.980 (the better single pipeline) to 0.98462.
+to weigh them, and moved the leaderboard score from 0.980 (the better single pipeline) to 0.98476.
 
 Final submission: COMB-v2, the learned combination of pipeline A (M-v29) and pipeline B, on the union of their
 candidate sets minus the pairs both reject: **3.68 candidates per Source 1 record**, fewer than either pipeline
-alone. F0.5 0.9914 on the training entities both held out; **public leaderboard 0.98462** (COMB-v1, the same
-combination before the pre-filter, with the same held-out score).
+alone. F0.5 0.9914 on the training entities both held out; **public leaderboard 0.98476** (COMB-v1, the same
+combination before the pre-filter: 0.98462).
 
 ---
 

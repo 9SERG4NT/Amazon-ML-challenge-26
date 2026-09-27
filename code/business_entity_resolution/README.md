@@ -2,8 +2,8 @@
 
 End-to-end pipeline for the Amazon ML Challenge 2026: for every Source 1 record, find the
 Source 2 / Source 3 records of the same business. The final submission, **COMB-v2**, combines the
-team's two pipelines (COMB-v1, the same combination without the pre-filter, scored **0.98462** on the
-public leaderboard):
+team's two pipelines and scores **0.98476** on the public leaderboard (COMB-v1, the same combination
+without the pre-filter: 0.98462):
 
 - **Pipeline A (`src/`, preset M-v29):** normalise → sparse IDF search + learned candidate filter →
   pairwise features, including three fine-tuned cross-encoders' pair scores → two-stage LightGBM
@@ -132,7 +132,7 @@ End-to-end presets (`--list` prints them all; the default stays M-v3, the first 
 | **M-v29** | M-v28 + ce3, multilingual-e5-base (FEAT-v10) | **eval 0.9887; pipeline A of the final submission** |
 
 The final submission, **COMB-v2**, is not a preset: `experiments/combine_team.py` combines M-v29 with pipeline B
-(shared held-out F0.5 0.9914; COMB-v1, without the pre-filter, **public leaderboard 0.98462**; see "The final
+(shared held-out F0.5 0.9914, **public leaderboard 0.98476**; COMB-v1, without the pre-filter, 0.98462; see "The final
 submission" above).
 
 ```bash

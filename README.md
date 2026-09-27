@@ -20,8 +20,7 @@ The team built two complete pipelines and combines them:
     trained on the 87,911 training entities that both pipelines held out.
   - France gets a label-free calibration.
   - Held-out F0.5: **0.9914**, against 0.9885 (A) and 0.9877 (B).
-  - Public leaderboard: **0.98462** (COMB-v1, the same combination before the pre-filter, with the same held-out
-    score).
+  - Public leaderboard: **0.98476** (COMB-v1, the same combination before the pre-filter: 0.98462).
 
 The package is `Team_Sumukh_submission.zip`. It holds the output files, the code (pipeline B included), and the filled
 `Documentation_template.md`. Reproduction steps: [`code/business_entity_resolution/README.md`](code/business_entity_resolution/README.md).
@@ -67,7 +66,7 @@ normalise ──> block ──> features ──> LightGBM stage 1 ──> stage 
 | M-v29 (pipeline A): + a third cross-encoder (multilingual-e5-base) | test-like | 0.9887 | 0.9984 | 0.9685 | |
 | Pipeline B (teammates, run R5) | its own 10% held out | 0.9875 | | | 0.980 |
 | **COMB-v1: learned combination of M-v29 and pipeline B** | held out by both | **0.9914** | 0.9982 | 0.9772 | **0.98462** |
-| **COMB-v2: COMB-v1 + pre-filter (3.68 candidates per S1 instead of 7.48); final** | held out by both | **0.9914** | 0.9981 | 0.9773 | final package |
+| **COMB-v2: COMB-v1 + pre-filter (3.68 candidates per S1 instead of 7.48); final** | held out by both | **0.9914** | 0.9981 | 0.9773 | **0.98476** |
 
 Rows with different eval data are not comparable. What the leaderboard taught us:
 
@@ -86,7 +85,7 @@ Rows with different eval data are not comparable. What the leaderboard taught us
    Self-training, a search tuned across countries and a French house-number fix did not move the eval.
 5. **New evidence beat more tuning.** Once features, learners and losses had saturated, cross-encoders that read
    both records together added 0.008 on the leaderboard (0.970 → 0.978). Combining two pipelines that search
-   differently added another 0.0045 over the better one (0.980 → 0.98462). Each pipeline finds true links the
+   differently added another 0.0045 over the better one (0.980 → 0.98476). Each pipeline finds true links the
    other misses.
 
 Every experiment, with methods and numbers: [`method_result.md`](method_result.md). The
