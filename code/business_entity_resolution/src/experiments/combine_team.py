@@ -145,6 +145,8 @@ def main() -> None:
     ap.add_argument("--force", action="store_true")
     ap.add_argument("--extra", nargs=3, action="append", default=[], metavar=("NAME", "TRAIN", "TEST"),
                     help="a further scorer's pairs (s1_id, cand_id, p) for train and test; repeatable")
+    ap.add_argument("--prefilter", type=float, default=0.0,
+                    help="drop union pairs that both pipelines score below this (a filter stage before the combination)")
     ap.add_argument("--france-shift", default="none", help="'auto' (the team's empty-share calibration), a number, or 'none'")
     a = ap.parse_args()
     out, team = Path(a.out), Path(a.team)
@@ -161,6 +163,9 @@ def main() -> None:
              .filter(pl.col("matched_entity_ids") != "").select("s1_id", pl.col("matched_entity_ids").alias("cand_id")))
     load = lambda f: pl.read_parquet(f).select("s1_id", "cand_id", pl.col("p").cast(pl.Float64))
     V = union_features(Tv.drop("y", "is_val"), Ov, shared, tuple((n, load(tr)) for n, tr, _ in a.extra))
+    keep = pl.max_horizontal(pl.col("p_team").fill_null(0), pl.col("p_ours").fill_null(0)) >= a.prefilter
+    if a.prefilter > 0:
+        V = V.filter(keep)
     V = V.join(links.with_columns(pl.lit(1, pl.Int8).alias("y")), on=["s1_id", "cand_id"], how="left").with_columns(pl.col("y").fill_null(0))
     feats = [c for c in V.columns if c not in ("s1_id", "cand_id", "y")]
     cover = {k: int(V[k].sum()) for k in ("in_team", "in_ours")}
@@ -199,6 +204,8 @@ def main() -> None:
     Tt = team_pairs(team, "test")
     Ot = pl.read_parquet(a.ours_test).select("s1_id", "cand_id", pl.col("p").cast(pl.Float64))
     U = union_features(Tt, Ot, None, tuple((n, load(te)) for n, _, te in a.extra)).sort(["s1_id", "cand_id"])
+    if a.prefilter > 0:
+        U = U.filter(keep)
     Xt = U.select(feats).to_numpy().astype(np.float32)
     pt = np.mean([m.predict(Xt, num_iteration=m.best_iteration, num_threads=a.threads) for m in models], axis=0)
     U = U.with_columns(pl.Series("p_comb", pt))
