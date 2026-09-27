@@ -104,6 +104,7 @@ Unless noted, the scores are on the DEV-10 **evaluation slice**: 20% of the DEV-
 | **M-v25** | 2026-09-27 | M-v11 + ce1: a 4-layer BERT cross-encoder's match probability for the pair (FEAT-v6), cross-fitted on two halves of the fit entities; gated expected-F (gate 0.6). Test-like eval slice | 98.21% | 6.0 | **0.9875** | 0.9979 | 0.9664 | 0.9928 / 0.9872 | pending | Doubled-distractor 0.9870. India 0.9851, US 0.9891. Stage 1 alone 0.9861 (M-v11's 0.9833). Test: France 94.5% linked, 3.28 links per S1 (M-v11 3.13). Same candidates as M-v11 |
 | **M-v26** | 2026-09-27 | M-v11 + ce2: a multilingual-e5-small cross-encoder (raw texts, trained on Kaggle's 2× T4) as a feature (FEAT-v7); gated expected-F (gate 0.5). Test-like eval slice | 98.21% | 6.0 | **0.9884** | 0.9981 | 0.9680 | 0.9927 / 0.9881 | pending | Doubled-distractor 0.9880. India 0.9861, US 0.9899. Stage 1 alone 0.9872. Test: France 94.1% linked, 3.21 links per S1. Same candidates as M-v11 |
 | M-v27 | 2026-09-27 | M-v26 + ce2's competition context (rank, margins, the S1's top ce2; FEAT-v8); expected-F (0.4). Test-like eval slice | 98.21% | 6.0 | 0.9884 | 0.9981 | 0.9680 | 0.9916 / 0.9882 | not submitted | Ties M-v26: the context lifts stage 1 (0.9872 → 0.9881), but stage 2 already sees the rival context. Test: France 3.20 links per S1 |
+| **M-v29** | 2026-09-27 | M-v28 + ce3, a multilingual-e5-base cross-encoder (278M), all three with their context (FEAT-v10, 83 features); gated expected-F (gate 0.55). Test-like eval slice | 98.21% | 6.0 | **0.9887** | 0.9984 | 0.9685 | 0.9942 / 0.9884 | pending | **Best eval and doubled-distractor (0.9884).** India 0.9865, US 0.9902. Test: France 94.1% linked, 3.20 links per S1. md5 `ff8c6886…` |
 | **M-v28** | 2026-09-27 | M-v11 + both cross-encoders (ce1 + ce2) with their competition context (FEAT-v9, 77 features); gated expected-F (gate 0.5). Test-like eval slice | 98.21% | 6.0 | **0.9885** | 0.9983 | 0.9682 | 0.9934 / 0.9883 | **0.978** (public) | **Best eval and doubled-distractor (0.9882).** India 0.9864, US 0.9900. Test: France 94.2% linked, 3.22 links per S1. Same candidates as M-v11 |
 | TEAM-B-R5 (teammates) | 2026-09-26 | The team's second pipeline: fine-tuned e5-small bi-encoder + FAISS blocking, graph filter, XGBoost with a cross-encoder score, expected F0.5, French logit shift. **Their own validation** (10% of train S1 held out), not comparable with the rows above | 98.16% | 4.78 | 0.9875 | — | — | 0.9850 / 0.9876 | pending | 5.95 candidates per test S1. Links more than M-v11 (France 3.17 against 3.13 per S1). See section 5 |
 
@@ -249,6 +250,12 @@ Copy the template below for each run, newest entry first. Record every run, incl
   on both evals, and its two text models read different inputs (normalised ASCII and raw scripts). All runs keep
   M-v11's candidate file. Files in `output/runs/<version key>/` (M-v28 md5 `21ce5362…`, M-v26 `8f9305f2…`,
   M-v25 `6457acf2…`).
+- **ce3: multilingual-e5-base** (MIT, 278M), same kernel (`infra/kaggle/ce3`, lr 3e-5, 1.2M pairs per half),
+  10:36–13:43 IST on 2× T4. On the 2.65M eval pairs alone: **log loss 0.0429, accuracy 98.42%** (ce2 0.0472 /
+  98.24%, ce1 0.0612 / 97.76%). Scores in S3 (md5 train `44e87d6b…`, test `b15b092b…`); M-v29 = FEAT-v10
+  (ce1 + ce2 + ce3 + context).
+- **M-v29 (FEAT-v10): eval 0.9887, doubled-distractor 0.9884** (M-v28 0.9885 / 0.9882), precision 0.9984, recall
+  0.9685, singletons 0.9942, India 0.9865, US 0.9902. Small but consistent gain on every metric. Stage 1 alone 0.9885.
 - **Leaderboard: M-v28 scored 0.978** (public; M-v11 0.970, the team's run 0.98). The +0.003 eval gain became
   +0.008 on the leaderboard: the cross-encoder helps the test, France included, even more than the eval shows,
   which fits a text model transferring to an unseen country better than hand-made string features.
