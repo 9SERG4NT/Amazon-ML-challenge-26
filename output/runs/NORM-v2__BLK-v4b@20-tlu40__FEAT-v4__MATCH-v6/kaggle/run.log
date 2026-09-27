@@ -1,0 +1,93 @@
+[      0s  peak   0.2 GB] versions: M-v6 = NORM-v2 + BLK-v4b@20-tlu40 + FEAT-v4 + MATCH-v6
+[      0s  peak   0.2 GB] ==== prep  -> /tmp/work/prep/NORM-v2
+[     94s  peak   6.2 GB] train S1 2,206,821 targets 10,320,219 links 7,638,365 | test S1 1,732,544 targets 9,969,589
+[     94s  peak   6.2 GB] split: fit 661,812, early_stop 110,343, eval 441,521, rest 993,145
+[    211s  peak  24.8 GB] aliases: 1105 name, 3107 address
+[    234s  peak  24.8 GB] normalised Q_train
+[    353s  peak  25.9 GB] normalised T_train
+[    372s  peak  25.9 GB] normalised Q_test
+[    489s  peak  26.3 GB] normalised T_test
+[    489s  peak  26.3 GB] ==== prep done in 489s
+[    489s  peak  26.3 GB] ==== block  -> /tmp/work/block/NORM-v2__BLK-v4b@20-tlu40
+[    496s  peak  26.3 GB] region spec: {'countries': ['India', 'US'], 'merges': [('India', 'telangana', 'andhrapradesh'), ('India', 'delhi', 'haryana')], 'min_share': 0.002, 'min_last_ratio': 0.6}
+[    498s  peak  26.3 GB] test-like universe: {'India': {'s1': 458739, 'targets': 2661402, 'targets_per_s1': 5.8, 'distractors_per_s1': 2.34}, 'US': {'s1': 688349, 'targets': 3990716, 'targets_per_s1': 5.8, 'distractors_per_s1': 2.34}}
+[    562s  peak  27.5 GB] block train/India: S1 458,739 x targets 2,661,402 -> 22,015,121 candidates (64s)
+[    670s  peak  32.9 GB] block train/US: S1 688,349 x targets 3,990,716 -> 32,772,091 candidates (108s)
+[    671s  peak  32.9 GB] block train: 54,787,212 candidates, 47.8 per S1
+[    678s  peak  32.9 GB] blocking recall: all 0.9868, eval 0.9869; eval by main-pass k: 5:0.9649, 10:0.9790, 20:0.9869; by name-only k: 5:0.9869
+[    710s  peak  32.9 GB] block test/France: S1 259,452 x targets 1,434,993 -> 12,892,579 candidates (31s)
+[    868s  peak  48.8 GB] block test/India: S1 809,986 x targets 4,717,565 -> 38,822,564 candidates (158s)
+[    979s  peak  48.8 GB] block test/US: S1 663,106 x targets 3,817,031 -> 31,604,087 candidates (111s)
+[    983s  peak  48.8 GB] block test: 83,319,230 candidates, 48.1 per S1
+[    983s  peak  48.8 GB] ==== block done in 494s
+[    983s  peak  48.8 GB] ==== features  -> /tmp/work/feat/NORM-v2__BLK-v4b@20-tlu40__FEAT-v4
+[   1030s  peak  48.8 GB] features train: frequent tokens per country {'name_core': {'India': 37, 'US': 11}, 'addr_n': {'India': 128, 'US': 62}}
+[   1123s  peak  48.8 GB] features train part 0: rows 0-4,000,000
+[   1198s  peak  48.8 GB] features train part 1: rows 4,000,000-8,000,000
+[   1269s  peak  48.8 GB] features train part 2: rows 8,000,000-12,000,000
+[   1341s  peak  48.8 GB] features train part 3: rows 12,000,000-16,000,000
+[   1413s  peak  48.8 GB] features train part 4: rows 16,000,000-20,000,000
+[   1485s  peak  48.8 GB] features train part 5: rows 20,000,000-24,000,000
+[   1557s  peak  48.8 GB] features train part 6: rows 24,000,000-28,000,000
+[   1629s  peak  48.8 GB] features train part 7: rows 28,000,000-32,000,000
+[   1701s  peak  48.8 GB] features train part 8: rows 32,000,000-36,000,000
+[   1773s  peak  48.8 GB] features train part 9: rows 36,000,000-40,000,000
+[   1845s  peak  48.8 GB] features train part 10: rows 40,000,000-44,000,000
+[   1919s  peak  48.8 GB] features train part 11: rows 44,000,000-48,000,000
+[   1991s  peak  48.8 GB] features train part 12: rows 48,000,000-52,000,000
+[   2042s  peak  48.8 GB] features train part 13: rows 52,000,000-54,787,212
+[   2097s  peak  48.8 GB] features test: frequent tokens per country {'name_core': {'France': 48, 'India': 38, 'US': 11}, 'addr_n': {'France': 83, 'India': 128, 'US': 62}}
+[   2198s  peak  48.8 GB] features test part 0: rows 0-4,000,000
+[   2273s  peak  48.8 GB] features test part 1: rows 4,000,000-8,000,000
+[   2346s  peak  48.8 GB] features test part 2: rows 8,000,000-12,000,000
+[   2418s  peak  48.8 GB] features test part 3: rows 12,000,000-16,000,000
+[   2491s  peak  48.8 GB] features test part 4: rows 16,000,000-20,000,000
+[   2564s  peak  48.8 GB] features test part 5: rows 20,000,000-24,000,000
+[   2637s  peak  48.8 GB] features test part 6: rows 24,000,000-28,000,000
+[   2711s  peak  48.8 GB] features test part 7: rows 28,000,000-32,000,000
+[   2783s  peak  48.8 GB] features test part 8: rows 32,000,000-36,000,000
+[   2855s  peak  48.8 GB] features test part 9: rows 36,000,000-40,000,000
+[   2927s  peak  48.8 GB] features test part 10: rows 40,000,000-44,000,000
+[   2998s  peak  48.8 GB] features test part 11: rows 44,000,000-48,000,000
+[   3071s  peak  48.8 GB] features test part 12: rows 48,000,000-52,000,000
+[   3145s  peak  48.8 GB] features test part 13: rows 52,000,000-56,000,000
+[   3218s  peak  48.8 GB] features test part 14: rows 56,000,000-60,000,000
+[   3290s  peak  48.8 GB] features test part 15: rows 60,000,000-64,000,000
+[   3368s  peak  48.8 GB] features test part 16: rows 64,000,000-68,000,000
+[   3441s  peak  48.8 GB] features test part 17: rows 68,000,000-72,000,000
+[   3513s  peak  48.8 GB] features test part 18: rows 72,000,000-76,000,000
+[   3586s  peak  48.8 GB] features test part 19: rows 76,000,000-80,000,000
+[   3646s  peak  48.8 GB] features test part 20: rows 80,000,000-83,319,230
+[   3646s  peak  48.8 GB] ==== features done in 2663s
+[   3646s  peak  48.8 GB] ==== train  -> /tmp/work/runs/NORM-v2__BLK-v4b@20-tlu40__FEAT-v4__MATCH-v6
+[   3653s  peak  48.8 GB] training rows: 33,699,833 (0.0715 positive), 65 features
+[200]	val's binary_logloss: 0.0061054
+[400]	val's binary_logloss: 0.00601206
+[   4515s  peak  48.8 GB] stage1 fold 0: 21,064,500 rows, best iteration 468 (861s)
+[200]	val's binary_logloss: 0.0060773
+[400]	val's binary_logloss: 0.00596476
+[600]	val's binary_logloss: 0.00595529
+[   5065s  peak  48.8 GB] stage1 fold 1: 21,073,602 rows, best iteration 546 (550s)
+[200]	val's binary_logloss: 0.00608217
+[400]	val's binary_logloss: 0.00596224
+[600]	val's binary_logloss: 0.00596213
+[   5424s  peak  48.8 GB] stage1 fold 2: 21,066,272 rows, best iteration 531 (358s)
+[   5707s  peak  48.8 GB] stage 1 predicted train (out-of-fold) and test
+[200]	val's binary_logloss: 0.00519295
+[   5959s  peak  48.8 GB] stage2 fold 0: 21,064,500 rows, best iteration 258 (228s)
+[200]	val's binary_logloss: 0.0052218
+[   6095s  peak  48.8 GB] stage2 fold 1: 21,073,602 rows, best iteration 142 (136s)
+[200]	val's binary_logloss: 0.00520961
+[   6282s  peak  48.8 GB] stage2 fold 2: 21,066,272 rows, best iteration 147 (187s)
+[   6375s  peak  48.8 GB] stage 2 predicted train (out-of-fold) and test
+[   6428s  peak  48.8 GB] ==== train done in 2782s
+[   6428s  peak  48.8 GB] ==== predict  -> /tmp/work/runs/NORM-v2__BLK-v4b@20-tlu40__FEAT-v4__MATCH-v6
+[   6428s  peak  48.8 GB] eval: 441,521 S1 entities; perfect matcher on these candidates F0.5=0.9959
+[   6464s  peak  48.8 GB] best on p1: gated_ef=0.75 F0.5=0.9840 P=0.9959 R=0.9607 singletons=0.9822 others=0.9841
+[   6502s  peak  48.8 GB] best on p2: gated_ef=0.5 F0.5=0.9856 P=0.9960 R=0.9647 singletons=0.9812 others=0.9859
+[   6505s  peak  48.8 GB] chosen: p2 gated_ef=0.5 -> eval F0.5=0.9856; India 0.9822, US 0.9878
+[   6518s  peak  48.8 GB] test: 5,672,242 links for 1,630,422 of 1,732,544 S1 entities -> /kaggle/working/output
+[   6518s  peak  48.8 GB] test profile: France 0.940 linked, 3.14/S1, India 0.941 linked, 3.30/S1, US 0.941 linked, 3.30/S1 | eval truth 0.944, 3.46/S1
+[   6566s  peak  48.8 GB] validator exit 0: ot checking that matched/candidate IDs exist in the test set. Every other rule is still checked. Re-run with --check-ids to enable it (needs test_source2/3.tsv; uses more memory). A nonexistent ID only lowers your score, never rejects your submission.
+PASS — no blocking issues found. Safe to submit.
+[   6566s  peak  48.8 GB] ==== predict done in 139s

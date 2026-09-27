@@ -1,0 +1,693 @@
+{
+  "versions": {
+    "preset": "M-v6",
+    "norm": {
+      "id": "NORM-v2",
+      "note": "anyascii transliteration; legal forms, street types, US states and ordinals canonicalised; Indian state names joined; French street types; digit-for-letter fixes; fka/dba split; website names turned into words; shree/shri/sri merged; per-country aliases learned from training links",
+      "alias_min_count": 25,
+      "alias_min_ratio": 0.5,
+      "alias_max_unaligned": 4
+    },
+    "block": {
+      "id": "BLK-v4b@20-tlu40",
+      "note": "BLK-v4b@20 on a test-like train universe: every eval S1 plus 40% of the other train S1 entities; the others are removed with their true targets. The test has ~2.3 distractors per S1 (train: 1.2) and half the US S1 density, and the leaderboard (0.96) disagreed with the full-universe eval slice (0.9813)",
+      "k": 20,
+      "k_noaddr": 5,
+      "char_grams": true,
+      "joined_name": true,
+      "max_df_frac": 0.01,
+      "min_df_cap": 1000,
+      "region_split": true,
+      "region_min_share": 0.002,
+      "region_min_last_ratio": 0.6,
+      "region_min_cross": 10,
+      "keep_nonevals": 0.4,
+      "dup_distractors": 1
+    },
+    "feat": {
+      "id": "FEAT-v4",
+      "note": "FEAT-v3 + 10 distinctive-part features (65): name and address similarity after removing the tokens found in over 1% of a country's records (cities, regions, street types, legal forms, generic words), and how many targets share the S1's / target's core name. French test S1 are often '<city> <generic word> <legal form>' and got ~3x the false links of US/India S1",
+      "align": true,
+      "number_gap": true,
+      "distinct": true
+    },
+    "match": {
+      "id": "MATCH-v6",
+      "note": "MATCH-v5 fitted on the rest entities too: 75% of the train S1 entities (fit 30% + rest 45%) instead of 30%, cross-fitted like the fit entities. Eval and early-stop entities are unchanged (the split draws them independently of the fit share), so it reuses the cached features",
+      "stages": 2,
+      "folds": 3,
+      "support": false,
+      "rules": [
+        "threshold",
+        "expected_f",
+        "gated_ef"
+      ],
+      "lgb": [
+        [
+          "learning_rate",
+          0.1
+        ]
+      ],
+      "pred_margin": null,
+      "fit_rest": true,
+      "frozen_from": null,
+      "algo": "lgb",
+      "blend_of": []
+    }
+  },
+  "scope": {
+    "sample": 1.0,
+    "seed": 42,
+    "fit": 0.3,
+    "es": 0.05,
+    "eval": 0.2
+  },
+  "prep": {
+    "scope": {
+      "sample": 1.0,
+      "seed": 42,
+      "fit": 0.3,
+      "es": 0.05,
+      "eval": 0.2
+    },
+    "train_s1": 2206821,
+    "train_targets": 10320219,
+    "train_links": 7638365,
+    "test_s1": 1732544,
+    "test_targets": 9969589,
+    "split": {
+      "fit": 661812,
+      "early_stop": 110343,
+      "eval": 441521,
+      "rest": 993145
+    },
+    "aliases": {
+      "name": 1105,
+      "address": 3107
+    },
+    "seconds": 489,
+    "peak_gb": 26.3
+  },
+  "block": {
+    "region_spec": {
+      "countries": [
+        "India",
+        "US"
+      ],
+      "merges": [
+        [
+          "India",
+          "telangana",
+          "andhrapradesh"
+        ],
+        [
+          "India",
+          "delhi",
+          "haryana"
+        ]
+      ],
+      "min_share": 0.002,
+      "min_last_ratio": 0.6
+    },
+    "universe": {
+      "India": {
+        "s1": 458739,
+        "targets": 2661402,
+        "targets_per_s1": 5.8,
+        "distractors_per_s1": 2.34
+      },
+      "US": {
+        "s1": 688349,
+        "targets": 3990716,
+        "targets_per_s1": 5.8,
+        "distractors_per_s1": 2.34
+      }
+    },
+    "train": {
+      "candidates": 54787212,
+      "per_s1": 47.76199559231724,
+      "recall_all": {
+        "pair_recall": 0.986830346798097,
+        "s1_all_found": 0.9565673857882082,
+        "cand_per_s1": 47.76199559231724
+      },
+      "recall_eval": {
+        "pair_recall": 0.9868811121644955,
+        "s1_all_found": 0.9567490938921978,
+        "cand_per_s1": 47.760761096301195
+      },
+      "recall_at_k_eval": {
+        "5": 0.9648791192398359,
+        "10": 0.978951287189865,
+        "20": 0.9868811121644955
+      },
+      "recall_at_k_noaddr_eval": {
+        "5": 0.9868811121644955
+      },
+      "cand_per_s1_at_k": {
+        "5": 17.762000822953425,
+        "10": 27.762000822953425,
+        "15": 37.76199995118073,
+        "20": 47.76199559231724
+      },
+      "cand_per_s1_at_k_noaddr": {
+        "5": 47.76199559231724
+      }
+    },
+    "test": {
+      "candidates": 83319230,
+      "per_s1": 48.09068629714454
+    },
+    "seconds": 494,
+    "peak_gb": 48.8
+  },
+  "features": {
+    "frequent_tokens": {
+      "train": {
+        "name_core": {
+          "India": 37,
+          "US": 11
+        },
+        "addr_n": {
+          "India": 128,
+          "US": 62
+        }
+      },
+      "test": {
+        "name_core": {
+          "France": 48,
+          "India": 38,
+          "US": 11
+        },
+        "addr_n": {
+          "France": 83,
+          "India": 128,
+          "US": 62
+        }
+      }
+    },
+    "train": {
+      "rows": 54787212,
+      "parts": 14,
+      "features": 65
+    },
+    "test": {
+      "rows": 83319230,
+      "parts": 21,
+      "features": 65
+    },
+    "seconds": 2663,
+    "peak_gb": 48.8
+  },
+  "train": {
+    "rows": 33699833,
+    "positive_rate": 0.07150246115462947,
+    "features_stage1": 65,
+    "best_iterations_stage1": [
+      468,
+      546,
+      531
+    ],
+    "importance_stage1": [
+      [
+        "margin_vs_other_s1",
+        0.6433
+      ],
+      [
+        "rank_for_t",
+        0.1177
+      ],
+      [
+        "num_x_edit",
+        0.0973
+      ],
+      [
+        "num_x_loggap",
+        0.015
+      ],
+      [
+        "n_tsort",
+        0.014
+      ],
+      [
+        "al_b_worst",
+        0.0138
+      ],
+      [
+        "bscore",
+        0.0113
+      ],
+      [
+        "a_b_in_a",
+        0.0103
+      ],
+      [
+        "al_b_n_unaligned",
+        0.0102
+      ],
+      [
+        "al_b_unaligned_idf",
+        0.0095
+      ],
+      [
+        "n_tset",
+        0.0063
+      ],
+      [
+        "num_x_relgap",
+        0.0047
+      ],
+      [
+        "num_jacc",
+        0.0037
+      ],
+      [
+        "num_b_in_a",
+        0.0034
+      ],
+      [
+        "a_tset",
+        0.0027
+      ]
+    ],
+    "features_stage2": 77,
+    "best_iterations_stage2": [
+      258,
+      142,
+      147
+    ],
+    "importance_stage2": [
+      [
+        "p1",
+        0.601
+      ],
+      [
+        "p1_margin_t",
+        0.3834
+      ],
+      [
+        "p1_margin_q",
+        0.0054
+      ],
+      [
+        "p1_best_other_t",
+        0.0009
+      ],
+      [
+        "p1_sum_q",
+        0.0009
+      ],
+      [
+        "p1_rank_q",
+        0.0007
+      ],
+      [
+        "p1_best_other_src",
+        0.0006
+      ],
+      [
+        "p1_best_other_q",
+        0.0005
+      ],
+      [
+        "margin_vs_other_s1",
+        0.0004
+      ],
+      [
+        "gap_to_best_src",
+        0.0003
+      ],
+      [
+        "a_name_tfreq",
+        0.0003
+      ],
+      [
+        "rank_in_q",
+        0.0002
+      ],
+      [
+        "t_indegree",
+        0.0002
+      ],
+      [
+        "n_tsort",
+        0.0002
+      ],
+      [
+        "n_ratio",
+        0.0002
+      ]
+    ],
+    "seconds": 2782,
+    "peak_gb": 48.8
+  },
+  "predict": {
+    "eval": {
+      "oracle": {
+        "f05": 0.9959281639951202,
+        "precision": 1.0,
+        "recall": 0.987001279000485,
+        "f05_singletons": 1.0,
+        "f05_non_singletons": 0.9956876198336009,
+        "n_entities": 441521
+      },
+      "best": {
+        "score": "p2",
+        "rule": "gated_ef",
+        "param": 0.5,
+        "f05": 0.9856001745812863,
+        "precision": 0.9960431996058771,
+        "recall": 0.9647444429398073,
+        "f05_singletons": 0.9812408640571707,
+        "f05_non_singletons": 0.9858577013317665,
+        "n_entities": 441521
+      },
+      "per_country": {
+        "India": {
+          "f05": 0.9822495822775614,
+          "precision": 0.9948588103493576,
+          "recall": 0.9574508111335934,
+          "f05_singletons": 0.976530612244898,
+          "f05_non_singletons": 0.9825855687671011,
+          "n_entities": 176610
+        },
+        "US": {
+          "f05": 0.9878339365117482,
+          "precision": 0.9968328904585321,
+          "recall": 0.9696094306502648,
+          "f05_singletons": 0.984353925006744,
+          "f05_non_singletons": 0.9880402744499378,
+          "n_entities": 264911
+        }
+      },
+      "table": [
+        {
+          "score": "p2",
+          "rule": "gated_ef",
+          "param": 0.5,
+          "f05": 0.9856001745812863,
+          "precision": 0.9960431996058771,
+          "recall": 0.9647444429398073,
+          "f05_singletons": 0.9812408640571707,
+          "f05_non_singletons": 0.9858577013317665,
+          "n_entities": 441521
+        },
+        {
+          "score": "p2",
+          "rule": "gated_ef",
+          "param": 0.55,
+          "f05": 0.9855971906681371,
+          "precision": 0.9961659502148368,
+          "recall": 0.9646277063511225,
+          "f05_singletons": 0.9833116777651454,
+          "f05_non_singletons": 0.9857322075952019,
+          "n_entities": 441521
+        },
+        {
+          "score": "p2",
+          "rule": "gated_ef",
+          "param": 0.6,
+          "f05": 0.9855785628631186,
+          "precision": 0.9963292820003238,
+          "recall": 0.9644723907185742,
+          "f05_singletons": 0.9859103459477018,
+          "f05_non_singletons": 0.9855589627407678,
+          "n_entities": 441521
+        },
+        {
+          "score": "p2",
+          "rule": "expected_f",
+          "param": 0.4,
+          "f05": 0.9855355490513912,
+          "precision": 0.9959164919900719,
+          "recall": 0.9647736185202035,
+          "f05_singletons": 0.9789670293974339,
+          "f05_non_singletons": 0.9859235850751134,
+          "n_entities": 441521
+        },
+        {
+          "score": "p2",
+          "rule": "gated_ef",
+          "param": 0.45,
+          "f05": 0.9855346183689103,
+          "precision": 0.9958951638614151,
+          "recall": 0.964812805805099,
+          "f05_singletons": 0.9788452168263765,
+          "f05_non_singletons": 0.9859297955035454,
+          "n_entities": 441521
+        },
+        {
+          "score": "p2",
+          "rule": "expected_f",
+          "param": 0.3,
+          "f05": 0.9855288575407483,
+          "precision": 0.9958919102640332,
+          "recall": 0.9647955094861737,
+          "f05_singletons": 0.9786828000649667,
+          "f05_non_singletons": 0.985933289141935,
+          "n_entities": 441521
+        },
+        {
+          "score": "p2",
+          "rule": "expected_f",
+          "param": 0.2,
+          "f05": 0.9855253082295411,
+          "precision": 0.9958807509193136,
+          "recall": 0.9648055668801402,
+          "f05_singletons": 0.9785609874939094,
+          "f05_non_singletons": 0.9859367262458598,
+          "n_entities": 441521
+        },
+        {
+          "score": "p2",
+          "rule": "gated_ef",
+          "param": 0.4,
+          "f05": 0.9855241746728887,
+          "precision": 0.9958736753431665,
+          "recall": 0.9648192822870739,
+          "f05_singletons": 0.978520383303557,
+          "f05_non_singletons": 0.9859379244212505,
+          "n_entities": 441521
+        },
+        {
+          "score": "p2",
+          "rule": "expected_f",
+          "param": 0.05,
+          "f05": 0.9855219097749562,
+          "precision": 0.9958689014015936,
+          "recall": 0.9648216809841017,
+          "f05_singletons": 0.978439174922852,
+          "f05_non_singletons": 0.9859403231182783,
+          "n_entities": 441521
+        },
+        {
+          "score": "p2",
+          "rule": "gated_ef",
+          "param": 0.3,
+          "f05": 0.9855219097749562,
+          "precision": 0.9958689014015936,
+          "recall": 0.9648216809841017,
+          "f05_singletons": 0.978439174922852,
+          "f05_non_singletons": 0.9859403231182783,
+          "n_entities": 441521
+        },
+        {
+          "score": "p2",
+          "rule": "gated_ef",
+          "param": 0.35,
+          "f05": 0.9855219097749562,
+          "precision": 0.9958689014015936,
+          "recall": 0.9648216809841017,
+          "f05_singletons": 0.978439174922852,
+          "f05_non_singletons": 0.9859403231182783,
+          "n_entities": 441521
+        },
+        {
+          "score": "p2",
+          "rule": "expected_f",
+          "param": 0.1,
+          "f05": 0.9855206744405893,
+          "precision": 0.995871493475596,
+          "recall": 0.9648174832643032,
+          "f05_singletons": 0.978439174922852,
+          "f05_non_singletons": 0.9859390148063972,
+          "n_entities": 441521
+        },
+        {
+          "score": "p2",
+          "rule": "gated_ef",
+          "param": 0.65,
+          "f05": 0.9854645891465306,
+          "precision": 0.9964481970400749,
+          "recall": 0.9642565079860743,
+          "f05_singletons": 0.9877781387039143,
+          "f05_non_singletons": 0.985327915951012,
+          "n_entities": 441521
+        },
+        {
+          "score": "p2",
+          "rule": "gated_ef",
+          "param": 0.7,
+          "f05": 0.9853354074410482,
+          "precision": 0.9965826537670887,
+          "recall": 0.9640061639729424,
+          "f05_singletons": 0.9899707649829462,
+          "f05_non_singletons": 0.9850615731825167,
+          "n_entities": 441521
+        },
+        {
+          "score": "p2",
+          "rule": "threshold",
+          "param": 0.675,
+          "f05": 0.9853036254446449,
+          "precision": 0.9958718614621432,
+          "recall": 0.9657633504216442,
+          "f05_singletons": 0.9887932434627253,
+          "f05_non_singletons": 0.9850974758749727,
+          "n_entities": 441521
+        },
+        {
+          "score": "p2",
+          "rule": "threshold",
+          "param": 0.7,
+          "f05": 0.9852788603240449,
+          "precision": 0.9962259552150838,
+          "recall": 0.9649814589546125,
+          "f05_singletons": 0.9899707649829462,
+          "f05_non_singletons": 0.9850016855383338,
+          "n_entities": 441521
+        },
+        {
+          "score": "p2",
+          "rule": "threshold",
+          "param": 0.65,
+          "f05": 0.9852588331314348,
+          "precision": 0.9954752353471924,
+          "recall": 0.9664590239603491,
+          "f05_singletons": 0.9877781387039143,
+          "f05_non_singletons": 0.9851100048766093,
+          "n_entities": 441521
+        },
+        {
+          "score": "p2",
+          "rule": "threshold",
+          "param": 0.625,
+          "f05": 0.985229709504836,
+          "precision": 0.9950926394158788,
+          "recall": 0.9671454349114444,
+          "f05_singletons": 0.9869254507065129,
+          "f05_non_singletons": 0.985129533406137,
+          "n_entities": 441521
+        },
+        {
+          "score": "p2",
+          "rule": "threshold",
+          "param": 0.725,
+          "f05": 0.9852001016908662,
+          "precision": 0.9965200058486031,
+          "recall": 0.9641837836803936,
+          "f05_singletons": 0.9907828487899951,
+          "f05_non_singletons": 0.9848703002896497,
+          "n_entities": 441521
+        },
+        {
+          "score": "p2",
+          "rule": "threshold",
+          "param": 0.6,
+          "f05": 0.9851644497489517,
+          "precision": 0.9947043887074608,
+          "recall": 0.9677747749586929,
+          "f05_singletons": 0.9859103459477018,
+          "f05_non_singletons": 0.9851203858486637,
+          "n_entities": 441521
+        },
+        {
+          "score": "p2",
+          "rule": "gated_ef",
+          "param": 0.75,
+          "f05": 0.9851253581758571,
+          "precision": 0.9966978007253195,
+          "recall": 0.9637053273873757,
+          "f05_singletons": 0.9917979535488063,
+          "f05_non_singletons": 0.9847311738675455,
+          "n_entities": 441521
+        },
+        {
+          "score": "p2",
+          "rule": "threshold",
+          "param": 0.75,
+          "f05": 0.9850731769845363,
+          "precision": 0.9968219248876475,
+          "recall": 0.9633292107415564,
+          "f05_singletons": 0.9917979535488063,
+          "f05_non_singletons": 0.9846759100665865,
+          "n_entities": 441521
+        },
+        {
+          "score": "p2",
+          "rule": "threshold",
+          "param": 0.575,
+          "f05": 0.985023443058206,
+          "precision": 0.9942560329358564,
+          "recall": 0.9683481968092768,
+          "f05_singletons": 0.9847734286178333,
+          "f05_non_singletons": 0.9850382126888726,
+          "n_entities": 441521
+        },
+        {
+          "score": "p2",
+          "rule": "threshold",
+          "param": 0.775,
+          "f05": 0.9848861907351418,
+          "precision": 0.99713393881762,
+          "recall": 0.962349078387547,
+          "f05_singletons": 0.9929754750690272,
+          "f05_non_singletons": 0.9844083153700603,
+          "n_entities": 441521
+        },
+        {
+          "score": "p2",
+          "rule": "threshold",
+          "param": 0.55,
+          "f05": 0.9848450585126699,
+          "precision": 0.9937760263431983,
+          "recall": 0.9689076833723659,
+          "f05_singletons": 0.9833116777651454,
+          "f05_non_singletons": 0.984935643149615,
+          "n_entities": 441521
+        }
+      ]
+    },
+    "test": {
+      "links": 5672242,
+      "s1_with_matches": 1630422,
+      "s1_total": 1732544,
+      "share_empty": 0.0589433803701378,
+      "candidates": 83319230,
+      "per_country": {
+        "France": {
+          "s1": 259452,
+          "share_linked": 0.9400197339006829,
+          "links_per_s1": 3.1397869355410633
+        },
+        "India": {
+          "s1": 809986,
+          "share_linked": 0.9412162679354952,
+          "links_per_s1": 3.2964433953179437
+        },
+        "US": {
+          "s1": 663106,
+          "share_linked": 0.9412673086957439,
+          "links_per_s1": 3.298937123174877
+        }
+      },
+      "eval_truth_profile": {
+        "share_linked": 0.9442200937214764,
+        "links_per_s1": 3.461685854126984
+      },
+      "validator": "ML Challenge 2026 \u2014 submission validator\n  test dir: /tmp/data/test\n  required S1 entities: 1732544\n  matching_results.tsv: 1732544 rows (102122 empty, 1630422 non-empty).\n  candidate_pairs.tsv: 1732544 rows (0 empty, 1732544 non-empty).\n\nWARNING: ID-existence check is OFF (the default) \u2014 not checking that matched/candidate IDs exist in the test set. Every other rule is still checked. Re-run with --check-ids to enable it (needs test_source2/3.tsv; uses more memory). A nonexistent ID only lowers your score, never rejects your submission.\nPASS \u2014 no blocking issues found. Safe to submit."
+    },
+    "seconds": 139,
+    "peak_gb": 48.8
+  }
+}

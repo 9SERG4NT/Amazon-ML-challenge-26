@@ -1,0 +1,38 @@
+{
+  "frequent_tokens": {
+    "train": {
+      "name_core": {
+        "India": 37,
+        "US": 11
+      },
+      "addr_n": {
+        "India": 128,
+        "US": 62
+      }
+    },
+    "test": {
+      "name_core": {
+        "France": 48,
+        "India": 38,
+        "US": 11
+      },
+      "addr_n": {
+        "France": 83,
+        "India": 128,
+        "US": 62
+      }
+    }
+  },
+  "train": {
+    "rows": 54787212,
+    "parts": 14,
+    "features": 65
+  },
+  "test": {
+    "rows": 83319230,
+    "parts": 21,
+    "features": 65
+  },
+  "seconds": 2663,
+  "peak_gb": 48.8
+}

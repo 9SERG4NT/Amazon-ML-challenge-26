@@ -1,0 +1,149 @@
+[{"stream_name":"stdout","time":2.767847923,"data":"[      0s] $ nproc; free -g; df -h /tmp /kaggle/working; python --version\n"}
+,{"stream_name":"stdout","time":3.01436406,"data":"96\n"}
+,{"stream_name":"stdout","time":3.244861917,"data":"               total        used        free      shared  buff/cache   available\n"}
+,{"stream_name":"stdout","time":3.244900487,"data":"Mem:             377           5         357           0          16         372\n"}
+,{"stream_name":"stdout","time":3.244904847,"data":"Swap:              0           0           0\n"}
+,{"stream_name":"stdout","time":3.2622946170000002,"data":"Filesystem      Size  Used Avail Use% Mounted on\n"}
+,{"stream_name":"stdout","time":3.262310567,"data":"overlay         8.0T  6.9T  1.1T  87% /\n"}
+,{"stream_name":"stdout","time":3.262314907,"data":"/dev/loop2       20G  120K   20G   1% /kaggle/working\n"}
+,{"stream_name":"stdout","time":3.264579177,"data":"Python 3.12.13\n"}
+,{"stream_name":"stdout","time":3.433556304,"data":"[      1s] $ ls -lL /tmp/data/train /tmp/data/test\n"}
+,{"stream_name":"stdout","time":3.456961384,"data":"/tmp/data/test:\n"}
+,{"stream_name":"stdout","time":3.456991504,"data":"total 1162588\n"}
+,{"stream_name":"stdout","time":3.456996944,"data":"-rw-r--r-- 1 nobody nogroup 175022086 Sep 26 03:32 test_source1.tsv\n"}
+,{"stream_name":"stdout","time":3.457000604,"data":"-rw-r--r-- 1 nobody nogroup 509456422 Sep 26 03:32 test_source2.tsv\n"}
+,{"stream_name":"stdout","time":3.457004084,"data":"-rw-r--r-- 1 nobody nogroup 506002772 Sep 26 03:32 test_source3.tsv\n"}
+,{"stream_name":"stdout","time":3.4570072339999998,"data":"\n"}
+,{"stream_name":"stdout","time":3.457010484,"data":"/tmp/data/train:\n"}
+,{"stream_name":"stdout","time":3.457013574,"data":"total 1298928\n"}
+,{"stream_name":"stdout","time":3.457016794,"data":"-rw-r--r-- 1 nobody nogroup 127015583 Sep 26 03:32 train_ground_truth.tsv\n"}
+,{"stream_name":"stdout","time":3.4570200939999998,"data":"-rw-r--r-- 1 nobody nogroup 210069713 Sep 26 03:32 train_source1.tsv\n"}
+,{"stream_name":"stdout","time":3.457023204,"data":"-rw-r--r-- 1 nobody nogroup 489301488 Sep 26 03:32 train_source2.tsv\n"}
+,{"stream_name":"stdout","time":3.457026414,"data":"-rw-r--r-- 1 nobody nogroup 503705637 Sep 26 03:32 train_source3.tsv\n"}
+,{"stream_name":"stdout","time":3.457136904,"data":"[      1s] $ pip install -q polars==1.41.2 lightgbm==4.7.0 rapidfuzz==3.14.5 sparse_dot_topn==1.2.0 anyascii==0.3.3 psutil || pip install -q polars lightgbm rapidfuzz sparse_dot_topn anyascii psutil\n"}
+,{"stream_name":"stderr","time":20.886621217,"data":"WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.\n"}
+,{"stream_name":"stderr","time":21.605743827,"data":"\n"}
+,{"stream_name":"stderr","time":21.605779538,"data":"[notice] A new release of pip is available: 25.0.1 -\u003e 26.2.1\n"}
+,{"stream_name":"stderr","time":21.605785647,"data":"[notice] To update, run: pip install --upgrade pip\n"}
+,{"stream_name":"stdout","time":21.696859096,"data":"[     19s] $ git clone -q --depth 1 --branch sumukh/full-pipeline-aws https://github.com/9SERG4NT/Amazon-ML-challenge-26 /tmp/repo \u0026\u0026 git -C /tmp/repo log --oneline -1\n"}
+,{"stream_name":"stdout","time":29.069589291,"data":"4a4387c Record the runner queue: M-v8 (XGBoost) and M-v9 (blend) after M-v7\n"}
+,{"stream_name":"stdout","time":29.070140471,"data":"[     26s] $ /usr/local/bin/python -u run_pipeline.py --data /tmp/data --work /tmp/work --out /kaggle/working/output --preset M-v6 --validator /tmp/repo/resources/student_resource/utils/validate_submission.py 2\u003e\u00261 | tee /kaggle/working/run.log; exit ${PIPESTATUS[0]}\n"}
+,{"stream_name":"stdout","time":46.173437178,"data":"[      0s  peak   0.2 GB] versions: M-v6 = NORM-v2 + BLK-v4b@20-tlu40 + FEAT-v4 + MATCH-v6\n"}
+,{"stream_name":"stdout","time":46.173490768,"data":"[      0s  peak   0.2 GB] ==== prep  -\u003e /tmp/work/prep/NORM-v2\n"}
+,{"stream_name":"stdout","time":140.198359877,"data":"[     94s  peak   6.2 GB] train S1 2,206,821 targets 10,320,219 links 7,638,365 | test S1 1,732,544 targets 9,969,589\n"}
+,{"stream_name":"stdout","time":140.273299001,"data":"[     94s  peak   6.2 GB] split: fit 661,812, early_stop 110,343, eval 441,521, rest 993,145\n"}
+,{"stream_name":"stdout","time":257.249365897,"data":"[    211s  peak  24.8 GB] aliases: 1105 name, 3107 address\n"}
+,{"stream_name":"stdout","time":280.551313603,"data":"[    234s  peak  24.8 GB] normalised Q_train\n"}
+,{"stream_name":"stdout","time":399.041416058,"data":"[    353s  peak  25.9 GB] normalised T_train\n"}
+,{"stream_name":"stdout","time":417.68621361,"data":"[    372s  peak  25.9 GB] normalised Q_test\n"}
+,{"stream_name":"stdout","time":535.04150974,"data":"[    489s  peak  26.3 GB] normalised T_test\n"}
+,{"stream_name":"stdout","time":535.154051608,"data":"[    489s  peak  26.3 GB] ==== prep done in 489s\n"}
+,{"stream_name":"stdout","time":535.154077918,"data":"[    489s  peak  26.3 GB] ==== block  -\u003e /tmp/work/block/NORM-v2__BLK-v4b@20-tlu40\n"}
+,{"stream_name":"stdout","time":542.491235361,"data":"[    496s  peak  26.3 GB] region spec: {'countries': ['India', 'US'], 'merges': [('India', 'telangana', 'andhrapradesh'), ('India', 'delhi', 'haryana')], 'min_share': 0.002, 'min_last_ratio': 0.6}\n"}
+,{"stream_name":"stdout","time":544.268367633,"data":"[    498s  peak  26.3 GB] test-like universe: {'India': {'s1': 458739, 'targets': 2661402, 'targets_per_s1': 5.8, 'distractors_per_s1': 2.34}, 'US': {'s1': 688349, 'targets': 3990716, 'targets_per_s1': 5.8, 'distractors_per_s1': 2.34}}\n"}
+,{"stream_name":"stdout","time":607.967292563,"data":"[    562s  peak  27.5 GB] block train/India: S1 458,739 x targets 2,661,402 -\u003e 22,015,121 candidates (64s)\n"}
+,{"stream_name":"stdout","time":716.277964497,"data":"[    670s  peak  32.9 GB] block train/US: S1 688,349 x targets 3,990,716 -\u003e 32,772,091 candidates (108s)\n"}
+,{"stream_name":"stdout","time":717.356185758,"data":"[    671s  peak  32.9 GB] block train: 54,787,212 candidates, 47.8 per S1\n"}
+,{"stream_name":"stdout","time":724.559290339,"data":"[    678s  peak  32.9 GB] blocking recall: all 0.9868, eval 0.9869; eval by main-pass k: 5:0.9649, 10:0.9790, 20:0.9869; by name-only k: 5:0.9869\n"}
+,{"stream_name":"stdout","time":755.694156764,"data":"[    710s  peak  32.9 GB] block test/France: S1 259,452 x targets 1,434,993 -\u003e 12,892,579 candidates (31s)\n"}
+,{"stream_name":"stdout","time":914.022964224,"data":"[    868s  peak  48.8 GB] block test/India: S1 809,986 x targets 4,717,565 -\u003e 38,822,564 candidates (158s)\n"}
+,{"stream_name":"stdout","time":1025.457584525,"data":"[    979s  peak  48.8 GB] block test/US: S1 663,106 x targets 3,817,031 -\u003e 31,604,087 candidates (111s)\n"}
+,{"stream_name":"stdout","time":1028.940708826,"data":"[    983s  peak  48.8 GB] block test: 83,319,230 candidates, 48.1 per S1\n"}
+,{"stream_name":"stdout","time":1028.957408385,"data":"[    983s  peak  48.8 GB] ==== block done in 494s\n"}
+,{"stream_name":"stdout","time":1028.957438375,"data":"[    983s  peak  48.8 GB] ==== features  -\u003e /tmp/work/feat/NORM-v2__BLK-v4b@20-tlu40__FEAT-v4\n"}
+,{"stream_name":"stdout","time":1075.818266072,"data":"[   1030s  peak  48.8 GB] features train: frequent tokens per country {'name_core': {'India': 37, 'US': 11}, 'addr_n': {'India': 128, 'US': 62}}\n"}
+,{"stream_name":"stdout","time":1169.45823415,"data":"[   1123s  peak  48.8 GB] features train part 0: rows 0-4,000,000\n"}
+,{"stream_name":"stdout","time":1243.873938608,"data":"[   1198s  peak  48.8 GB] features train part 1: rows 4,000,000-8,000,000\n"}
+,{"stream_name":"stdout","time":1315.416624754,"data":"[   1269s  peak  48.8 GB] features train part 2: rows 8,000,000-12,000,000\n"}
+,{"stream_name":"stdout","time":1387.527258041,"data":"[   1341s  peak  48.8 GB] features train part 3: rows 12,000,000-16,000,000\n"}
+,{"stream_name":"stdout","time":1459.078273877,"data":"[   1413s  peak  48.8 GB] features train part 4: rows 16,000,000-20,000,000\n"}
+,{"stream_name":"stdout","time":1530.834070984,"data":"[   1485s  peak  48.8 GB] features train part 5: rows 20,000,000-24,000,000\n"}
+,{"stream_name":"stdout","time":1603.013537951,"data":"[   1557s  peak  48.8 GB] features train part 6: rows 24,000,000-28,000,000\n"}
+,{"stream_name":"stdout","time":1674.869954703,"data":"[   1629s  peak  48.8 GB] features train part 7: rows 28,000,000-32,000,000\n"}
+,{"stream_name":"stdout","time":1747.25723717,"data":"[   1701s  peak  48.8 GB] features train part 8: rows 32,000,000-36,000,000\n"}
+,{"stream_name":"stdout","time":1819.371705529,"data":"[   1773s  peak  48.8 GB] features train part 9: rows 36,000,000-40,000,000\n"}
+,{"stream_name":"stdout","time":1891.031723245,"data":"[   1845s  peak  48.8 GB] features train part 10: rows 40,000,000-44,000,000\n"}
+,{"stream_name":"stdout","time":1964.740656938,"data":"[   1919s  peak  48.8 GB] features train part 11: rows 44,000,000-48,000,000\n"}
+,{"stream_name":"stdout","time":2037.281614172,"data":"[   1991s  peak  48.8 GB] features train part 12: rows 48,000,000-52,000,000\n"}
+,{"stream_name":"stdout","time":2088.05756103,"data":"[   2042s  peak  48.8 GB] features train part 13: rows 52,000,000-54,787,212\n"}
+,{"stream_name":"stdout","time":2143.105072256,"data":"[   2097s  peak  48.8 GB] features test: frequent tokens per country {'name_core': {'France': 48, 'India': 38, 'US': 11}, 'addr_n': {'France': 83, 'India': 128, 'US': 62}}\n"}
+,{"stream_name":"stdout","time":2244.557264478,"data":"[   2198s  peak  48.8 GB] features test part 0: rows 0-4,000,000\n"}
+,{"stream_name":"stdout","time":2318.914751718,"data":"[   2273s  peak  48.8 GB] features test part 1: rows 4,000,000-8,000,000\n"}
+,{"stream_name":"stdout","time":2391.856097995,"data":"[   2346s  peak  48.8 GB] features test part 2: rows 8,000,000-12,000,000\n"}
+,{"stream_name":"stdout","time":2464.669791933,"data":"[   2418s  peak  48.8 GB] features test part 3: rows 12,000,000-16,000,000\n"}
+,{"stream_name":"stdout","time":2537.016693184,"data":"[   2491s  peak  48.8 GB] features test part 4: rows 16,000,000-20,000,000\n"}
+,{"stream_name":"stdout","time":2609.717273345,"data":"[   2564s  peak  48.8 GB] features test part 5: rows 20,000,000-24,000,000\n"}
+,{"stream_name":"stdout","time":2683.57455774,"data":"[   2637s  peak  48.8 GB] features test part 6: rows 24,000,000-28,000,000\n"}
+,{"stream_name":"stdout","time":2757.27209795,"data":"[   2711s  peak  48.8 GB] features test part 7: rows 28,000,000-32,000,000\n"}
+,{"stream_name":"stdout","time":2829.568075936,"data":"[   2783s  peak  48.8 GB] features test part 8: rows 32,000,000-36,000,000\n"}
+,{"stream_name":"stdout","time":2901.316863044,"data":"[   2855s  peak  48.8 GB] features test part 9: rows 36,000,000-40,000,000\n"}
+,{"stream_name":"stdout","time":2972.876335059,"data":"[   2927s  peak  48.8 GB] features test part 10: rows 40,000,000-44,000,000\n"}
+,{"stream_name":"stdout","time":3044.657126561,"data":"[   2998s  peak  48.8 GB] features test part 11: rows 44,000,000-48,000,000\n"}
+,{"stream_name":"stdout","time":3117.49407494,"data":"[   3071s  peak  48.8 GB] features test part 12: rows 48,000,000-52,000,000\n"}
+,{"stream_name":"stdout","time":3191.386923554,"data":"[   3145s  peak  48.8 GB] features test part 13: rows 52,000,000-56,000,000\n"}
+,{"stream_name":"stdout","time":3264.104732402,"data":"[   3218s  peak  48.8 GB] features test part 14: rows 56,000,000-60,000,000\n"}
+,{"stream_name":"stdout","time":3335.819726457,"data":"[   3290s  peak  48.8 GB] features test part 15: rows 60,000,000-64,000,000\n"}
+,{"stream_name":"stdout","time":3414.179471098,"data":"[   3368s  peak  48.8 GB] features test part 16: rows 64,000,000-68,000,000\n"}
+,{"stream_name":"stdout","time":3487.034416077,"data":"[   3441s  peak  48.8 GB] features test part 17: rows 68,000,000-72,000,000\n"}
+,{"stream_name":"stdout","time":3559.453962145,"data":"[   3513s  peak  48.8 GB] features test part 18: rows 72,000,000-76,000,000\n"}
+,{"stream_name":"stdout","time":3632.12142467,"data":"[   3586s  peak  48.8 GB] features test part 19: rows 76,000,000-80,000,000\n"}
+,{"stream_name":"stdout","time":3691.82828403,"data":"[   3646s  peak  48.8 GB] features test part 20: rows 80,000,000-83,319,230\n"}
+,{"stream_name":"stdout","time":3691.892391905,"data":"[   3646s  peak  48.8 GB] ==== features done in 2663s\n"}
+,{"stream_name":"stdout","time":3691.892414195,"data":"[   3646s  peak  48.8 GB] ==== train  -\u003e /tmp/work/runs/NORM-v2__BLK-v4b@20-tlu40__FEAT-v4__MATCH-v6\n"}
+,{"stream_name":"stdout","time":3699.095513711,"data":"[   3653s  peak  48.8 GB] training rows: 33,699,833 (0.0715 positive), 65 features\n"}
+,{"stream_name":"stdout","time":4045.688280552,"data":"[200]\tval's binary_logloss: 0.0061054\n"}
+,{"stream_name":"stdout","time":4446.606621282,"data":"[400]\tval's binary_logloss: 0.00601206\n"}
+,{"stream_name":"stdout","time":4560.72865374,"data":"[   4515s  peak  48.8 GB] stage1 fold 0: 21,064,500 rows, best iteration 468 (861s)\n"}
+,{"stream_name":"stdout","time":4750.162720988,"data":"[200]\tval's binary_logloss: 0.0060773\n"}
+,{"stream_name":"stdout","time":4928.607366258,"data":"[400]\tval's binary_logloss: 0.00596476\n"}
+,{"stream_name":"stdout","time":5088.624530957,"data":"[600]\tval's binary_logloss: 0.00595529\n"}
+,{"stream_name":"stdout","time":5111.25047722,"data":"[   5065s  peak  48.8 GB] stage1 fold 1: 21,073,602 rows, best iteration 546 (550s)\n"}
+,{"stream_name":"stdout","time":5251.229016156,"data":"[200]\tval's binary_logloss: 0.00608217\n"}
+,{"stream_name":"stdout","time":5352.942925445,"data":"[400]\tval's binary_logloss: 0.00596224\n"}
+,{"stream_name":"stdout","time":5456.680007995,"data":"[600]\tval's binary_logloss: 0.00596213\n"}
+,{"stream_name":"stdout","time":5469.826031799,"data":"[   5424s  peak  48.8 GB] stage1 fold 2: 21,066,272 rows, best iteration 531 (358s)\n"}
+,{"stream_name":"stdout","time":5753.335016056,"data":"[   5707s  peak  48.8 GB] stage 1 predicted train (out-of-fold) and test\n"}
+,{"stream_name":"stdout","time":5882.622512836,"data":"[200]\tval's binary_logloss: 0.00519295\n"}
+,{"stream_name":"stdout","time":6005.130150536,"data":"[   5959s  peak  48.8 GB] stage2 fold 0: 21,064,500 rows, best iteration 258 (228s)\n"}
+,{"stream_name":"stdout","time":6109.138306012,"data":"[200]\tval's binary_logloss: 0.0052218\n"}
+,{"stream_name":"stdout","time":6141.47739907,"data":"[   6095s  peak  48.8 GB] stage2 fold 1: 21,073,602 rows, best iteration 142 (136s)\n"}
+,{"stream_name":"stdout","time":6289.811164987,"data":"[200]\tval's binary_logloss: 0.00520961\n"}
+,{"stream_name":"stdout","time":6328.175086923,"data":"[   6282s  peak  48.8 GB] stage2 fold 2: 21,066,272 rows, best iteration 147 (187s)\n"}
+,{"stream_name":"stdout","time":6421.1842002,"data":"[   6375s  peak  48.8 GB] stage 2 predicted train (out-of-fold) and test\n"}
+,{"stream_name":"stdout","time":6473.697253806,"data":"[   6428s  peak  48.8 GB] ==== train done in 2782s\n"}
+,{"stream_name":"stdout","time":6473.697289946,"data":"[   6428s  peak  48.8 GB] ==== predict  -\u003e /tmp/work/runs/NORM-v2__BLK-v4b@20-tlu40__FEAT-v4__MATCH-v6\n"}
+,{"stream_name":"stdout","time":6474.163282905,"data":"[   6428s  peak  48.8 GB] eval: 441,521 S1 entities; perfect matcher on these candidates F0.5=0.9959\n"}
+,{"stream_name":"stdout","time":6510.61307505,"data":"[   6464s  peak  48.8 GB] best on p1: gated_ef=0.75 F0.5=0.9840 P=0.9959 R=0.9607 singletons=0.9822 others=0.9841\n"}
+,{"stream_name":"stdout","time":6548.388824588,"data":"[   6502s  peak  48.8 GB] best on p2: gated_ef=0.5 F0.5=0.9856 P=0.9960 R=0.9647 singletons=0.9812 others=0.9859\n"}
+,{"stream_name":"stdout","time":6551.380481414,"data":"[   6505s  peak  48.8 GB] chosen: p2 gated_ef=0.5 -\u003e eval F0.5=0.9856; India 0.9822, US 0.9878\n"}
+,{"stream_name":"stdout","time":6563.767971891,"data":"[   6518s  peak  48.8 GB] test: 5,672,242 links for 1,630,422 of 1,732,544 S1 entities -\u003e /kaggle/working/output\n"}
+,{"stream_name":"stdout","time":6563.889396221,"data":"[   6518s  peak  48.8 GB] test profile: France 0.940 linked, 3.14/S1, India 0.941 linked, 3.30/S1, US 0.941 linked, 3.30/S1 | eval truth 0.944, 3.46/S1\n"}
+,{"stream_name":"stdout","time":6612.641236111,"data":"[   6566s  peak  48.8 GB] validator exit 0: ot checking that matched/candidate IDs exist in the test set. Every other rule is still checked. Re-run with --check-ids to enable it (needs test_source2/3.tsv; uses more memory). A nonexistent ID only lowers your score, never rejects your submission.\n"}
+,{"stream_name":"stdout","time":6612.641266841,"data":"PASS — no blocking issues found. Safe to submit.\n"}
+,{"stream_name":"stdout","time":6612.65251692,"data":"[   6566s  peak  48.8 GB] ==== predict done in 139s\n"}
+,{"stream_name":"stdout","time":6613.659261361,"data":"[   6611s] $ ls -la /kaggle/working /kaggle/working/output; md5sum /kaggle/working/output/*.tsv\n"}
+,{"stream_name":"stdout","time":6613.663125161,"data":"/kaggle/working:\n"}
+,{"stream_name":"stdout","time":6613.663154181,"data":"total 68\n"}
+,{"stream_name":"stdout","time":6613.663158441,"data":"drwxr-xr-x 3 root root  4096 Sep 26 08:25 .\n"}
+,{"stream_name":"stdout","time":6613.663162111,"data":"drwxr-xr-x 8 root root  4096 Sep 26 06:35 ..\n"}
+,{"stream_name":"stdout","time":6613.663165301,"data":"-rw-r--r-- 1 root root 18745 Sep 26 08:25 NORM-v2__BLK-v4b@20-tlu40__FEAT-v4__MATCH-v6__metrics.json\n"}
+,{"stream_name":"stdout","time":6613.663168811,"data":"-rw-r--r-- 1 root root 10752 Sep 26 08:25 NORM-v2__BLK-v4b@20-tlu40__FEAT-v4__MATCH-v6__predict.json\n"}
+,{"stream_name":"stdout","time":6613.663172001,"data":"-rw-r--r-- 1 root root  1730 Sep 26 08:25 NORM-v2__BLK-v4b@20-tlu40__FEAT-v4__MATCH-v6__train.json\n"}
+,{"stream_name":"stdout","time":6613.663175591,"data":"-rw-r--r-- 1 root root   571 Sep 26 08:25 NORM-v2__BLK-v4b@20-tlu40__FEAT-v4__features.json\n"}
+,{"stream_name":"stdout","time":6613.663178861,"data":"-rw-r--r-- 1 root root  1488 Sep 26 08:25 NORM-v2__BLK-v4b@20-tlu40__block.json\n"}
+,{"stream_name":"stdout","time":6613.663182021,"data":"-rw-r--r-- 1 root root   239 Sep 26 08:25 NORM-v2__BLK-v4b@20-tlu40__region_spec.json\n"}
+,{"stream_name":"stdout","time":6613.663185191,"data":"drwxr-xr-x 2 root root  4096 Sep 26 08:24 output\n"}
+,{"stream_name":"stdout","time":6613.663188321,"data":"-rw-r--r-- 1 root root  7634 Sep 26 08:25 run.log\n"}
+,{"stream_name":"stdout","time":6613.663191461,"data":"\n"}
+,{"stream_name":"stdout","time":6613.663194561,"data":"/kaggle/working/output:\n"}
+,{"stream_name":"stdout","time":6613.663211111,"data":"total 1163836\n"}
+,{"stream_name":"stdout","time":6613.663213511,"data":"drwxr-xr-x 2 root root       4096 Sep 26 08:24 .\n"}
+,{"stream_name":"stdout","time":6613.663215731,"data":"drwxr-xr-x 3 root root       4096 Sep 26 08:25 ..\n"}
+,{"stream_name":"stdout","time":6613.663217861,"data":"-rw-r--r-- 1 root root 1096210016 Sep 26 08:24 candidate_pairs.tsv\n"}
+,{"stream_name":"stdout","time":6613.663220021,"data":"-rw-r--r-- 1 root root   95542312 Sep 26 08:24 matching_results.tsv\n"}
+,{"stream_name":"stdout","time":6615.278551178,"data":"c526c104e1bf93126218418f4bcb45ad  /kaggle/working/output/candidate_pairs.tsv\n"}
+,{"stream_name":"stdout","time":6615.418205086,"data":"f055edc3edaeb41e0204d35dae4be8e9  /kaggle/working/output/matching_results.tsv\n"}
+,{"stream_name":"stdout","time":6615.418755236,"data":"done in 6613s, pipeline exit 0\n"}
+,{"stream_name":"stderr","time":6665.273552877,"data":"[NbConvertApp] Converting notebook __script__.ipynb to html\n"}
+,{"stream_name":"stderr","time":6671.139014509,"data":"[NbConvertApp] Writing 291359 bytes to __results__.html\n"}
+]

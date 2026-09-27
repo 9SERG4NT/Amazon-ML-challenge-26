@@ -1,0 +1,245 @@
+{
+  "args": {
+    "stage1_dir": "/kaggle/tmp/stage1",
+    "data_dir": "/kaggle/input/datasets/serg4nt/mlc26-ber-data",
+    "out_dir": "/kaggle/working/stage2",
+    "team_name": "Team_Sumukh",
+    "team_members": "Satvik Barhanpure, Sumukh Chourasia, Jatin Patin, Parambrata Sanyal",
+    "tau_mode": null,
+    "tol": null,
+    "calibrate": "empty",
+    "orphan_cap": 200000,
+    "filter_tol": 0.001,
+    "margins": true,
+    "cross_encoder": true,
+    "ce_base": "intfloat/multilingual-e5-small",
+    "ce_pairs": 2000000,
+    "ce_minutes": 45.0,
+    "fit_max_pairs": 4000000,
+    "rounds": 3000,
+    "workers": -1,
+    "seed": 42
+  },
+  "blocking_rule": {
+    "tau": 0.02,
+    "delta_rev": 0.05,
+    "k_fwd": 2,
+    "delta_fwd": 1.0,
+    "tau_mode": "quantile"
+  },
+  "blocking_val_rule": {
+    "recall": 0.9836293186530575,
+    "cands_per_s1": 5.402184973198874,
+    "f05_ceiling": 0.995307851119592,
+    "zero_cand_s1": 0.00021350049968202055
+  },
+  "graph_filter": {
+    "threshold": 0.039999999999999994,
+    "tol": 0.001,
+    "coef": {
+      "sim_q": 2.2522,
+      "rev_rank": -0.6058,
+      "rev_def": -0.3503,
+      "rev_gap": -0.2075,
+      "fwd_rank": -0.5342,
+      "fwd_def": -0.7141,
+      "fwd_gap": -0.9703
+    }
+  },
+  "blocking_val": {
+    "recall": 0.9809471091961655,
+    "cands_per_s1": 4.890101753429636,
+    "f05_ceiling": 0.9943846388077976,
+    "zero_cand_s1": 0.0015580993912964478,
+    "graph_recall": 0.9906201557522217
+  },
+  "blocking_val_by_country": {
+    "India": {
+      "recall": 0.9792200650109497,
+      "cands_per_s1": 5.017177481697058,
+      "f05_ceiling": 0.9938967126846903,
+      "zero_cand_s1": 0.003217225228502569
+    },
+    "US": {
+      "recall": 0.9821064428232399,
+      "cands_per_s1": 4.805532017915507,
+      "f05_ceiling": 0.9947093568617033,
+      "zero_cand_s1": 0.00045394020094419564
+    }
+  },
+  "best_iteration": 692,
+  "feature_gain": {
+    "ce_p": 6821.26,
+    "ce_p_sm": 345.49,
+    "b_addr_empty": 333.49,
+    "ce_p_bm": 171.23,
+    "a_tset_bm": 68.22,
+    "a_idf_cos_bm": 35.26,
+    "rev_gap": 31.85,
+    "n_cand": 30.78,
+    "n_idf_cos_bm": 24.6,
+    "num_tset": 22.47,
+    "a_tset": 21.86,
+    "num_n_b": 19.74,
+    "num_first": 18.57,
+    "name_dup_a": 16.97,
+    "rev_n": 15.05,
+    "n_tset_bm": 13.77,
+    "num_first_sm": 13.53,
+    "name_dup_b": 13.05,
+    "fwd_rank": 11.81,
+    "a_partial": 11.53,
+    "sim_q": 11.06,
+    "n_len_b": 9.99,
+    "n_core_ratio": 9.76,
+    "num_tset_sm": 9.4,
+    "n_idf_miss": 9.4,
+    "cand_rank": 9.38,
+    "b_name_indic": 9.15,
+    "a_tsort": 9.14,
+    "n_jw": 8.48,
+    "n_tset": 8.47,
+    "n_ratio": 8.03,
+    "a_tset_sm": 7.93,
+    "n_idf_jac": 7.84,
+    "n_partial": 7.74,
+    "fwd_gap": 7.55,
+    "n_tsort": 7.47,
+    "n_idf_cos": 7.31,
+    "n_tset_sm": 7.05,
+    "n_join": 6.93,
+    "a_idf_cos_sm": 6.89,
+    "a_ratio": 6.88,
+    "a_idf_jac": 6.68,
+    "rel_sim": 6.53,
+    "a_idf_cos": 6.42,
+    "n_idf_cos_sm": 6.22,
+    "loc_ratio": 6.19,
+    "num_first_bm": 6.16,
+    "num_tset_bm": 5.74,
+    "rev_rank": 5.58,
+    "n_len_a": 5.41,
+    "a_idf_miss": 5.12,
+    "b_addr_indic": 5.07,
+    "num_n_a": 4.69,
+    "src": 3.75
+  },
+  "selection": {
+    "method": "thresholds",
+    "alpha": 1.0,
+    "val_f05_expected_f": 0.9874867276106718,
+    "val_f05_thresholds": 0.9874581319632488
+  },
+  "thresholds": {
+    "t": 0.7,
+    "t_single": 0.75,
+    "r": 0.0
+  },
+  "validation": {
+    "macro_f05": 0.9874581319632488,
+    "singletons": 0.9935319013016051,
+    "non_singletons": 0.9870917755790214,
+    "country_India": 0.9878605978898881,
+    "country_US": 0.9871902882338969,
+    "candidate_ceiling": 0.9943846388077976
+  },
+  "validation_predictions": {
+    "s1": 220140,
+    "matches": 737689,
+    "mean_matches": 3.3509993640410647,
+    "empty_s1": 0.058967020986644865,
+    "country_India": {
+      "mean_matches": 3.3696057478059207,
+      "empty_s1": 0.058376153881133194
+    },
+    "country_US": {
+      "mean_matches": 3.338616692894323,
+      "empty_s1": 0.059360246943469315
+    }
+  },
+  "validation_errors": {
+    "false_positives": 2012,
+    "false_negatives": 10399,
+    "blocking_misses": 14491
+  },
+  "orphan_val": {
+    "India": {
+      "pairs": 200000,
+      "acceptance": 0.00254
+    },
+    "US": {
+      "pairs": 200000,
+      "acceptance": 0.00123
+    }
+  },
+  "test_candidates": {
+    "pairs": 10712138,
+    "cands_per_s1": 6.182895210742123,
+    "zero_cand_s1": 0.0012346006796941375,
+    "country_France": 6.357202873749287,
+    "country_India": 6.3793065559157816,
+    "country_US": 5.87477718494479
+  },
+  "orphan_test": {
+    "France": {
+      "pairs": 200000,
+      "acceptance": 0.084265
+    },
+    "India": {
+      "pairs": 200000,
+      "acceptance": 0.00207
+    },
+    "US": {
+      "pairs": 200000,
+      "acceptance": 0.00079
+    }
+  },
+  "calibration": {
+    "mode": "empty",
+    "target": 0.05840979382143141,
+    "logit_shift": {
+      "France": 2.2828476428985596,
+      "India": 0.0,
+      "US": 0.0
+    }
+  },
+  "test_predictions": {
+    "s1": 1732544,
+    "matches": 5800658,
+    "mean_matches": 3.348058115695763,
+    "empty_s1": 0.058410060581434005,
+    "country_France": {
+      "mean_matches": 3.2491135161802567,
+      "empty_s1": 0.05841157516611936
+    },
+    "country_India": {
+      "mean_matches": 3.3566296207588775,
+      "empty_s1": 0.058462738862153175
+    },
+    "country_US": {
+      "mean_matches": 3.376301828063688,
+      "empty_s1": 0.05834512129282498
+    }
+  },
+  "test_predictions_uncalibrated": {
+    "s1": 1732544,
+    "matches": 5871212,
+    "mean_matches": 3.3887808909903585,
+    "empty_s1": 0.05687128292268479,
+    "country_France": {
+      "mean_matches": 3.521048209302684,
+      "empty_s1": 0.048136071412053096
+    },
+    "country_India": {
+      "mean_matches": 3.3566296207588775,
+      "empty_s1": 0.058462738862153175
+    },
+    "country_US": {
+      "mean_matches": 3.376301828063688,
+      "empty_s1": 0.05834512129282498
+    }
+  },
+  "validator_pass": true,
+  "minutes": 117.2,
+  "date": "2026-09-27"
+}
