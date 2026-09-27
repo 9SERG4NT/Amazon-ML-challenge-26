@@ -200,6 +200,17 @@ Copy the template below for each run, newest entry first. Record every run, incl
 - **Public leaderboard: 0.98462** (uploaded 17:45 IST), against 0.980 for the team's R5 and 0.978 for M-v28: the
   held-out gain (+0.0029 over M-v29, +0.0037 over the team) carried over to the test (+0.0045 over the team's best).
   COMB-v1 is the final submission.
+- **More inputs for the combiner (18:00 IST, `--extra`), no gain.** Same shared validation, same command plus:
+
+  | Variant | Features | F0.5 | Rule | France links per S1 |
+  |---|---:|---:|---|---:|
+  | COMB-v1 (re-run with the new code: byte-identical file, md5 `c0b7f451…`) | 16 | 0.99140 | gated 0.65 | 3.31 |
+  | v2a: + M-v28's probability and M-v29's stage-1 probability, with their context | 28 | 0.99138 | threshold 0.7 | 3.34 |
+  | v2b: v2a + the raw ce1 / ce2 / ce3 scores, with their context | 46 | 0.99145 | gated 0.7 | 3.31 |
+
+  +0.00005 is below the noise of a rule choice, so COMB-v1 stays. What pipeline A knows is already in M-v29's
+  probability; the combination's gain comes from pipeline B's different search and cross-encoder, and more views of A
+  add nothing. Not uploaded.
   Files in `output/runs/COMB-v1__M-v29__TEAM-R6__fr-auto/` and `s3://…/predictions/COMB-v1__M-v29__TEAM-R6__fr-auto/`.
 
 ### A cross-encoder feature, the team pipeline's main idea (FEAT-v6 / FEAT-v7 → M-v25 / M-v26)
