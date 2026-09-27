@@ -1,10 +1,19 @@
 # Business Entity Resolution
 
 End-to-end pipeline for the Amazon ML Challenge 2026: for every Source 1 record, find the
-Source 2 / Source 3 records of the same business. Stages: normalise → block (candidate
-generation) → pairwise features, including two fine-tuned cross-encoders' pair scores →
-two-stage LightGBM → per-entity decision → the two output files. Final submission: preset
-**M-v28** (test-like evaluation F0.5 0.9885, public leaderboard 0.978).
+Source 2 / Source 3 records of the same business. The final submission, **COMB-v1** (public
+leaderboard **0.98462**), combines the team's two pipelines:
+
+- **Pipeline A (`src/`, preset M-v29):** normalise → sparse IDF search + learned candidate filter →
+  pairwise features, including three fine-tuned cross-encoders' pair scores → two-stage LightGBM
+  (test-like evaluation F0.5 0.9887; M-v28, its predecessor, scored 0.978 on the leaderboard).
+- **Pipeline B (`team_pipeline/`):** a fine-tuned multilingual-e5-small bi-encoder with FAISS
+  search and a graph filter → XGBoost with a cross-encoder score (the teammates' pipeline; 0.980 on
+  the leaderboard).
+- **Combination (`src/experiments/combine_team.py`):** a LightGBM over the union of both candidate
+  sets reads each pipeline's probability and competition context. It is trained on the training
+  entities that both pipelines held out, where it scores 0.9914 against 0.9885 (A) and 0.9877 (B).
+  French probabilities get a label-free calibration.
 
 ## Setup
 
@@ -15,11 +24,13 @@ pip install torch==2.14.0 --index-url https://download.pytorch.org/whl/cpu   # C
 pip install -r requirements.txt
 ```
 
-Every dependency is open source. The models are LightGBM (MIT) and two cross-encoders fine-tuned
-from `google/bert_uncased_L-4_H-256_A-4` (Apache-2.0, 11M parameters) and
-`intfloat/multilingual-e5-small` (MIT, 118M parameters), both downloaded from the Hugging Face
-hub on first use. No external data, APIs or lookups are used: everything is learned from the
-training files.
+Every dependency is open source. Pipeline A's models are LightGBM (MIT) and three cross-encoders
+fine-tuned from `google/bert_uncased_L-4_H-256_A-4` (Apache-2.0, 11M parameters),
+`intfloat/multilingual-e5-small` (MIT, 118M) and `intfloat/multilingual-e5-base` (MIT, 278M).
+Pipeline B's are a bi-encoder and a cross-encoder fine-tuned from `intfloat/multilingual-e5-small`
+and XGBoost (Apache-2.0); its pinned environment is `team_pipeline/requirements.txt`. The base models
+are downloaded from the Hugging Face hub on first use. Every model is far below 8B parameters. No
+external data, APIs or lookups are used: everything is learned from the training files.
 
 ## Data
 
@@ -28,8 +39,34 @@ It is not in git: the files exceed GitHub's size limit.
 
 ## Run
 
-From `src/`, with `D=<dataset dir with train/ and test/>` and `W=<work dir>`, the final
-submission (M-v28) in four steps:
+### The final submission (COMB-v1)
+
+From `src/`, with `D=<dataset dir with train/ and test/>`, `W=<work dir>` and `R=<dir for the team run>`:
+
+```bash
+# A. pipeline A, preset M-v29: steps 1-4 below, then ce3 and the matcher on FEAT-v10
+CE_CONFIG='{"model": "intfloat/multilingual-e5-base", "lr": 3e-5, "score_batch": 512, "name": "ce3"}' \
+  python ../kaggle/run_ce.py                                  # ~3 h on 2x T4; copy ce3_*.parquet to $W/extra/NORM-v2__BLK-v5-tlu40/
+python run_pipeline.py --data $D --work $W --out $W/out_m29 --preset M-v29 --stages features,train,predict
+python -m experiments.export_scores $W NORM-v2__BLK-v5-tlu40__FEAT-v10__MATCH-v6 $W/m29   # -> m29_{train,test}.parquet
+
+# B. pipeline B (from team_pipeline/, GPU, ~4.7 h on Kaggle's 2x T4); it saves its validation and test pair scores
+cd ../team_pipeline
+python -m src.stage1_blocking --data-dir $D --out-dir $R/stage1
+python -m src.stage2_match --stage1-dir $R/stage1 --data-dir $D --out-dir $R/stage2 --team-name Team_Sumukh \
+  --margins --cross-encoder --fit-max-pairs 4000000 --ce-pairs 2000000 --ce-minutes 45
+cd ../src
+
+# C. the combination (8 cores, ~2.5 min, 9 GB): writes matching_results.tsv, candidate_pairs.tsv, combine_validation.json
+python -m experiments.combine_team --team $R/stage2 --ours-train $W/m29_train.parquet --ours-test $W/m29_test.parquet \
+  --truth $D/train/train_ground_truth.tsv --s1 $D/test/test_source1.tsv --out ../../../output --threads 8 --france-shift auto
+```
+
+The combination is deterministic: two runs give byte-identical files. The team notebook that ran
+pipeline B on Kaggle is `team_pipeline/team_pipeline.ipynb`; it writes the same source files and
+runs the two commands above.
+
+### Pipeline A alone (M-v28, four steps)
 
 ```bash
 # 1. normalise, candidate search + learned filter, base features (65)
@@ -64,11 +101,11 @@ the previous stage's files from `--work`, so an interrupted run resumes where it
 Every component is a named version in `src/ber/versions.py`, using the IDs of the
 experiment log (`method_result.md`). A run is one combination of the four:
 
-| Component | Stage | Final (preset M-v28) |
+| Component | Stage | Pipeline A in the final submission (preset M-v29) |
 |---|---|---|
 | NORM — normalisation and learned aliases | prep | NORM-v2 |
 | BLK — candidate generation | block | BLK-v5-tlu40 (top-20 search in the test-like train universe + learned filter: 6.5 per S1) |
-| FEAT — pairwise features | features | FEAT-v9 (77: FEAT-v4's 65 + the two cross-encoder scores and their competition context) |
+| FEAT — pairwise features | features | FEAT-v10 (83: FEAT-v4's 65 + three cross-encoder scores and their competition context) |
 | MATCH — models and decision rule | train, predict | MATCH-v6 (two-stage LightGBM, 75% of entities fitted) |
 
 End-to-end presets (`--list` prints them all; the default stays M-v3, the first full-data run):
@@ -88,7 +125,11 @@ End-to-end presets (`--list` prints them all; the default stays M-v3, the first 
 | M-v21 | FEAT-v5: house numbers kept in the distinctive parts + `addr_twin_num_diff` | eval 0.9854, same as M-v11 |
 | M-v25 | M-v11 + ce1, a 4-layer BERT cross-encoder's pair score (FEAT-v6) | eval 0.9875 |
 | M-v26 / M-v27 | M-v11 + ce2, multilingual-e5-small (FEAT-v7); + its competition context (FEAT-v8) | eval 0.9884 / 0.9884 |
-| **M-v28** | M-v11 + ce1 + ce2 + their competition context (FEAT-v9) | **eval 0.9885, leaderboard 0.978; final** |
+| M-v28 | M-v11 + ce1 + ce2 + their competition context (FEAT-v9) | eval 0.9885, leaderboard 0.978 |
+| **M-v29** | M-v28 + ce3, multilingual-e5-base (FEAT-v10) | **eval 0.9887; pipeline A of the final submission** |
+
+The final submission, **COMB-v1**, is not a preset: `experiments/combine_team.py` combines M-v29 with pipeline B
+(shared held-out F0.5 0.9914, **public leaderboard 0.98462**; see "The final submission" above).
 
 ```bash
 python run_pipeline.py --list                          # every version and preset
@@ -142,8 +183,12 @@ src/
   ber/                 normalize, aliases, blocking, features, model, metrics, data, versions
   experiments/         experiments behind the versions (see method_result.md); cross_encoder.py builds the
                        cross-encoder features (export, CPU/GPU training and cross-fitted scoring)
+  experiments/combine_team.py   the final combination of pipelines A and B (union of candidates, cross-fitted LightGBM,
+                       French calibration); experiments/export_scores.py exports a run's probabilities for it
 kaggle/
-  run_ce.py            ce2 on two GPUs (one cross-fitting half per GPU), using experiments/cross_encoder.py
+  run_ce.py            ce2 / ce3 on two GPUs (one cross-fitting half per GPU), using experiments/cross_encoder.py
+team_pipeline/         pipeline B (the teammates' bi-encoder + XGBoost pipeline, run on Kaggle): src/, its notebook,
+                       README and pinned requirements. It ships in the submission zip; it is not in the public repository
 ```
 
 `infra/aws/` (repository root) holds the AWS setup: SageMaker training-job launcher, EC2
