@@ -10,7 +10,13 @@ leaderboard **0.978**, eval 0.9885, M-v11's candidate file (md5 `64f56033…`, m
 `make_submission.py --team "Team_Sumukh"` (validator PASS, 34 files, 112.6 MB). The teammates' run scores 0.980; it
 or a combination of both pipelines replaces this if it wins before the deadline (2026-09-27 23:59 IST).
 
-**Current submission: M-v11** (`NORM-v2__BLK-v5-tlu40__FEAT-v4__MATCH-v6`, public leaderboard **0.970**): M-v6 behind
+**COMB-v1 (2026-09-27, 17:38 IST): the next leaderboard upload.** `experiments/combine_team.py` learns how to weigh
+M-v29 and the team pipeline (our Kaggle re-run R6) on the union of their candidate sets, from the 87,911 train S1
+that both held out: F0.5 **0.9914** there, against 0.9885 (M-v29) and 0.9877 (team). French probabilities get the
+team's label-free empty-share calibration: 94.2% of S1 linked in every country, France 3.31 links per S1. 7.48
+candidates per S1 (union of both searches); candidate file md5 `0c71b8c6…`; validator PASS; two runs give identical files.
+
+**Earlier current submission: M-v11** (`NORM-v2__BLK-v5-tlu40__FEAT-v4__MATCH-v6`, public leaderboard **0.970**): M-v6 behind
 the learned candidate filter, **6.5 candidates per S1 instead of 48.1**, stage-2 probabilities with the expected-F rule
 (floor 0.4). It replaced M-v5 (0.971, kept in `runs/`): the same leaderboard score within rounding, with a candidate set
 7.4 times smaller, which the organisers rank higher in the final review.
@@ -26,6 +32,8 @@ in git: `*.tsv` is ignored outside the top of this folder, and `candidate_pairs.
 | M-v6 (Kaggle TPU run) | `NORM-v2__BLK-v4b@20-tlu40__FEAT-v4__MATCH-v6` | test-like | 0.9856 | pending | `f055edc3edaeb41e0204d35dae4be8e9` |
 | **M-v11** (EC2, current) | `NORM-v2__BLK-v5-tlu40__FEAT-v4__MATCH-v6` | test-like | 0.9854 | **0.970** | `f96f52d773991cc04870a36cf4b3ed46` |
 | M-v7 (rejected, not downloaded) | `NORM-v2__BLK-v4b@20-dup2__FEAT-v4__MATCH-v6` | doubled distractors (copies) | 0.9856 | not submitted | — |
+| **COMB-v1** (learned combination of M-v29 and the team pipeline R6, France calibrated; the upload candidate) | `COMB-v1__M-v29__TEAM-R6__fr-auto` | shared held-out S1 of both pipelines (87,911) | **0.9914** (M-v29 0.9885, team 0.9877 on the same S1) | pending | `c0b7f4515fba3e0358cbf2dfc39b2564` |
+| TEAM-R6 (the team pipeline, our Kaggle re-run) | `TEAM-R6__e5-FAISS__XGBoost-CE` | their own 10% held out | 0.9875 (not comparable) | not submitted | `4e5681a517441c308a965dc705fdcf0b` |
 | **M-v29** (M-v28 + the e5-base cross-encoder) | `NORM-v2__BLK-v5-tlu40__FEAT-v10__MATCH-v6` | test-like | **0.9887** | pending | `ff8c6886617af3a77cb02ee1d0b4f04d` |
 | **M-v28** (M-v11 + both cross-encoders + their context) | `NORM-v2__BLK-v5-tlu40__FEAT-v9__MATCH-v6` | test-like | **0.9885** | **0.978** | `21ce5362e10b414c0ecf78c365321c0c` |
 | M-v27 (not downloaded: ties M-v26) | `NORM-v2__BLK-v5-tlu40__FEAT-v8__MATCH-v6` | test-like | 0.9884 | not submitted | — |

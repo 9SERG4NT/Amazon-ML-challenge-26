@@ -106,6 +106,8 @@ Unless noted, the scores are on the DEV-10 **evaluation slice**: 20% of the DEV-
 | M-v27 | 2026-09-27 | M-v26 + ce2's competition context (rank, margins, the S1's top ce2; FEAT-v8); expected-F (0.4). Test-like eval slice | 98.21% | 6.0 | 0.9884 | 0.9981 | 0.9680 | 0.9916 / 0.9882 | not submitted | Ties M-v26: the context lifts stage 1 (0.9872 → 0.9881), but stage 2 already sees the rival context. Test: France 3.20 links per S1 |
 | **M-v29** | 2026-09-27 | M-v28 + ce3, a multilingual-e5-base cross-encoder (278M), all three with their context (FEAT-v10, 83 features); gated expected-F (gate 0.55). Test-like eval slice | 98.21% | 6.0 | **0.9887** | 0.9984 | 0.9685 | 0.9942 / 0.9884 | pending | **Best eval and doubled-distractor (0.9884).** India 0.9865, US 0.9902. Test: France 94.1% linked, 3.20 links per S1. md5 `ff8c6886…` |
 | **M-v28** | 2026-09-27 | M-v11 + both cross-encoders (ce1 + ce2) with their competition context (FEAT-v9, 77 features); gated expected-F (gate 0.5). Test-like eval slice | 98.21% | 6.0 | **0.9885** | 0.9983 | 0.9682 | 0.9934 / 0.9883 | **0.978** (public) | **Best eval and doubled-distractor (0.9882).** India 0.9864, US 0.9900. Test: France 94.2% linked, 3.22 links per S1. Same candidates as M-v11 |
+| **COMB-v1** | 2026-09-27 | Learned combination of M-v29 and the team pipeline (re-run R6) on the union of both candidate sets: a LightGBM on each side's probability and competition context (16 features), cross-fitted on the 87,911 S1 that both pipelines held out; gated expected-F (gate 0.65); French empty-share calibration (logit shift 1.15). **Shared validation**, not comparable with the rows above | 99.31% | 6.50 (test 7.48) | **0.9914** | 0.9982 | 0.9772 | 0.9957 / — | pending | Same entities: M-v29 0.9885, team R6 0.9877, plain mean of the two 0.9905. Test: 94.2% of S1 linked in every country, France 3.31 links per S1. See section 5 |
+| TEAM-R6 (team pipeline, our Kaggle re-run) | 2026-09-27 | The team's pipeline run end to end by us (`serg4nt/mlc26-team`, 2× T4, 4 h 44 min) without the hard-negative round; scores saved for the combination. Their own validation | 98.09% | 4.89 (test 6.18) | 0.9875 | — | — | 0.9935 / 0.9871 | not submitted | Validator PASS. Differs from R5 on 20% of French S1 (India 5.5%, US 4.6%). France 3.25 links per S1 after its calibration |
 | TEAM-B-R5 (teammates) | 2026-09-26 | The team's second pipeline: fine-tuned e5-small bi-encoder + FAISS blocking, graph filter, XGBoost with a cross-encoder score, expected F0.5, French logit shift. **Their own validation** (10% of train S1 held out), not comparable with the rows above | 98.16% | 4.78 | 0.9875 | — | — | 0.9850 / 0.9876 | pending | 5.95 candidates per test S1. Links more than M-v11 (France 3.17 against 3.13 per S1). See section 5 |
 
 ---
@@ -169,6 +171,33 @@ Copy the template below for each run, newest entry first. Record every run, incl
 - **Dry run at full scale** (a stand-in "team" built from M-v11's scores in the team's file format, against M-v28):
   114,638 shared validation S1 and 686,676 union pairs. M-v11 0.9852, M-v28 0.9885, their mean 0.9881, the combiner
   0.9885 (as expected: M-v11 adds nothing to M-v28). Test: 11.19M union pairs. **1 min 16 s, 9.1 GB peak.**
+- **The real run (COMB-v1, 17:20–17:35 IST).** The team pipeline's Kaggle re-run (R6) finished at 17:12 IST (4 h 44
+  min; stage 2 117 min). Its own validation is 0.98746 (R5: 0.9875), with 4.89 candidates per validation S1 and 6.18 per
+  test S1. Its score files went to S3 (`experiments/team/R6/`), and the runner combined them with M-v29's
+  (`/opt/mlc26/stack/m29_*.parquet`). Shared validation: **87,911 S1** (the team's validation S1 inside our test-like
+  universe), 571,098 union pairs (team 430,659, ours 525,506), holding 302,314 of the 304,416 true links (99.31%).
+
+  | Scorer (same 87,911 S1, rule chosen on them) | F0.5 | P | R | Singletons |
+  |---|---:|---:|---:|---:|
+  | Team R6 alone (gated 0.6) | 0.98766 | 0.9973 | 0.9670 | 0.9880 |
+  | M-v29 alone (threshold 0.75) | 0.98849 | 0.9984 | 0.9680 | 0.9953 |
+  | Plain mean of the two probabilities (threshold 0.65) | 0.99052 | 0.9973 | 0.9769 | 0.9915 |
+  | **Learned combination (gated 0.65)** | **0.99140** | 0.9982 | 0.9772 | 0.9957 |
+
+  The gain is recall at the same precision: each pipeline finds true links the other misses (different searches and
+  cross-encoders), and when both agree the combination keeps them. The plain mean, which learns nothing, already gets
+  +0.0020, so the gain is not a stacking artefact.
+- **France.** The team saves *uncalibrated* test scores. Without a shift the combination links 94.48% of French S1
+  (India and US 94.18%) with 3.39 links per S1, more than either pipeline alone (M-v29 3.20, team 3.25) and above the
+  label-free estimate of 3.31 (the S3−S2 excess). `--france-shift auto` (the team's empty-share calibration, added to
+  `combine_team.py`) shifts French logits by 1.15 until France's no-match share equals the others' (5.82%): France
+  then has 94.18% linked and **3.31 links per S1**, matching the estimate. This is the version kept.
+- **Reproducibility.** Two runs first differed in the fourth decimal place because polars `unique()` and joins do not
+  keep row order, so the 5-fold assignment changed. The shared S1 list and the union frame are now sorted, ties in
+  expected F are broken by record id, and LightGBM runs with `deterministic`. Two runs of the final command give
+  identical files. Runtime 2 min 18 s (the calibration search takes about 100 s), 9.0 GB peak.
+- **Test:** 12,964,229 union pairs (7.48 per S1: team 10.71M, ours 11.19M), 5,840,814 links. Validator PASS.
+  Files in `output/runs/COMB-v1__M-v29__TEAM-R6__fr-auto/` and `s3://…/predictions/COMB-v1__M-v29__TEAM-R6__fr-auto/`.
 
 ### A cross-encoder feature, the team pipeline's main idea (FEAT-v6 / FEAT-v7 → M-v25 / M-v26)
 
