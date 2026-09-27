@@ -14,3 +14,11 @@ xgboost==3.4.1
 catboost==1.2.10
 # experiments only (not part of the model): Bayesian hyperparameter search, experiments/tune_lgb.py; MIT
 optuna==5.0.0
+# cross-encoder features (src/experiments/cross_encoder.py, kaggle/run_ce.py): PyTorch BSD-3, transformers Apache-2.0.
+# Models, downloaded on first use: google/bert_uncased_L-4_H-256_A-4 (Apache-2.0, 11M), intfloat/multilingual-e5-small (MIT, 118M).
+# CPU build: pip install torch==2.14.0 --index-url https://download.pytorch.org/whl/cpu (the Kaggle GPU image brings its own CUDA build)
+torch==2.14.0
+transformers==5.17.0
+tokenizers==0.23.2
+safetensors==0.8.0
+huggingface_hub==1.33.0

@@ -1,8 +1,8 @@
 # ML Challenge 2026: Business Entity Resolution Solution Template
 
-**Team Name:** [Your Team Name]  
-**Team Members:** [List all team members]  
-**Submission Date:** 2026-09-26
+**Team Name:** Team_Sumukh  
+**Team Members:** Satvik Barhanpure, Sumukh Chourasia, Jatin Patin, Parambrata Sanyal  
+**Submission Date:** 2026-09-27
 
 ---
 
@@ -11,7 +11,9 @@
 We match records in four steps. An IDF-weighted sparse search generates candidates, and a small
 learned filter keeps the plausible ones (**6.5 per Source 1 record**). A two-stage LightGBM
 classifier scores each (Source 1, candidate) pair, and a per-entity decision turns probabilities
-into the match list that maximises macro F0.5. Four ideas carry most of the accuracy:
+into the match list that maximises macro F0.5. Among its features are the match probabilities of
+two fine-tuned transformer **cross-encoders** that read both records together. Five ideas carry
+most of the accuracy (test-like evaluation F0.5 **0.9885**, public leaderboard **0.978**):
 
 - **Competition features.** Every Source 2/3 record belongs to at most one Source 1 entity, so a
   candidate is judged against the rival Source 1 records that want the same record.
@@ -26,6 +28,11 @@ into the match list that maximises macro F0.5. Four ideas carry most of the accu
 - **A learned candidate filter.** The search keeps 48 candidates per record to find 98.7% of the
   true links. A small LightGBM that sees only the search scores and their competition context
   cuts that to 6.5 at a cost of 0.0002 F0.5.
+- **Cross-encoder features.** Two small transformers (a 4-layer BERT on normalised text and
+  multilingual-e5-small on the raw text, both MIT/Apache-2.0) are fine-tuned to score candidate
+  pairs. They are cross-fitted, so the classifier never sees a score from a model trained on the
+  same entity. They raised the evaluation F0.5 from 0.9854 to 0.9885 and the leaderboard score
+  from 0.970 to 0.978.
 
 ---
 
@@ -72,7 +79,8 @@ set small.
 Every component is a named version recorded in `src/ber/versions.py`: normalisation (NORM),
 blocking (BLK), features (FEAT) and matcher (MATCH). Every stage caches its output under the
 versions it depends on, so any logged result can be re-run by name. The submitted run is
-preset **M-v11 = NORM-v2 + BLK-v5-tlu40 + FEAT-v4 + MATCH-v6**.
+preset **M-v28 = NORM-v2 + BLK-v5-tlu40 + FEAT-v9 + MATCH-v6**: M-v11 (FEAT-v4) plus the two
+cross-encoder scores and their competition context.
 
 ---
 
@@ -135,7 +143,8 @@ preset **M-v11 = NORM-v2 + BLK-v5-tlu40 + FEAT-v4 + MATCH-v6**.
 
 ## 4. Matching Model
 
-**Features used** (65 in stage 1):
+**Features used** (77 in stage 1: 65 string, number and context features, plus 12 from the
+cross-encoders):
 - **Name features:** rapidfuzz ratio, token-set, token-sort and partial ratios, and Jaro-Winkler
   on the full, core (legal words removed) and joined names; best match against "fka / dba" parts;
   token containment both ways; **soft word alignment** (each core-name token aligned to its best
@@ -163,6 +172,25 @@ preset **M-v11 = NORM-v2 + BLK-v5-tlu40 + FEAT-v4 + MATCH-v6**.
   candidate within its Source 1 record (per source and overall); gap to the best candidate;
   number of candidates; **number of Source 1 records that retrieved the target, this record's rank
   among them, and its score margin over the best rival**; how many Source 1 records share the name.
+- **Cross-encoder features (FEAT-v9).** A cross-encoder reads the two records of a pair together
+  ("name | address" of each), so it compares them token by token: typos, transliterations,
+  abbreviations, reordered or swapped words.
+  - **ce1:** `google/bert_uncased_L-4_H-256_A-4` (Apache-2.0, 11M parameters) on our normalised
+    ASCII texts, trained on 8 CPU cores.
+  - **ce2:** `intfloat/multilingual-e5-small` (MIT, 118M parameters) on the raw texts, so it also
+    reads Devanagari and French accents; trained on two T4 GPUs.
+  - Each is a one-logit classifier fine-tuned with binary cross-entropy for one epoch (600k and
+    1.2M pairs).
+  - **Leakage control:** the fit entities are split into two halves by a hash of the Source 1
+    row. The half-A model scores the half-B pairs and vice versa, and every other pair
+    (early-stopping, evaluation, test) is scored by a model that never saw its entity. So the
+    LightGBM only ever reads out-of-sample scores, as for its own stage 2.
+  - Alone they separate the evaluation pairs with log loss 0.061 (ce1) and 0.047 (ce2); the full
+    LightGBM reaches about 0.040.
+  - Each score comes with its competition context: rank and margin over the next candidate of the
+    same Source 1 record and over the best rival Source 1 record for the same target, and the
+    record's top score.
+  - Both models are far below the 8B-parameter limit and carry MIT/Apache-2.0 licences.
 - **Stage 2** adds the stage-1 probability and its context: rank among the record's candidates and
   among the target's Source 1 records, best rival probability and the margins over it.
 
@@ -188,8 +216,10 @@ so every probability used downstream is out-of-sample. After the filter it train
   - its average with LightGBM: 0.9847;
   - CatBoost (Apache-2.0): 0.9850; averaged with LightGBM: 0.9854 (a tie, so the simpler single
     model is kept); LightGBM + network + CatBoost: 0.9851.
-- The model family and the loss are therefore no longer the bottleneck. The remaining loss is
-  recall on links whose evidence is missing (invented names, replaced house numbers, no address).
+- The model family and the loss were therefore no longer the bottleneck; the features were. The
+  cross-encoder scores, a new kind of evidence rather than a new learner, gave the largest gain
+  since the test-like universe: evaluation 0.9854 → 0.9885 (precision 0.9962 → 0.9983,
+  singletons 0.9816 → 0.9934) and leaderboard 0.970 → 0.978.
 
 **Threshold selection method:** each target is kept only for the Source 1 entity that scores it
 highest (exclusive assignment); then a rule chosen on held-out training entities by macro F0.5:
@@ -217,10 +247,13 @@ evaluation links, and evaluation rows are scored exactly like test rows.
 
 ## 5. Results & Error Analysis
 
-- **F_0.5 Score (macro):** **0.9854** on the test-like evaluation slice (441,521 entities;
-  precision 0.9962, recall 0.9639; India 0.9817, US 0.9879); **public leaderboard 0.970**.
-  On the test set it links 94.0% of Source 1 records with 3.1–3.3 links each (evaluation truth:
-  94.4% and 3.46). For reference:
+- **F_0.5 Score (macro):** **0.9885** on the test-like evaluation slice (441,521 entities;
+  precision 0.9983, recall 0.9682, singletons 0.9934; India 0.9864, US 0.9900; 0.9882 when
+  links to distractors count twice, the test's lookalike density); **public leaderboard 0.978**.
+  On the test set it links 94.0–94.2% of Source 1 records with 3.2–3.4 links each (evaluation
+  truth: 94.4% and 3.46; France 3.22 against a label-free estimate of 3.31). For reference:
+  - Without the cross-encoder features (M-v11): 0.9854 on the evaluation slice, 0.970 on the
+    leaderboard.
   - The first full run (M-v3, full-train universe) scored 0.9813 on the evaluation slice
     (precision 0.9952, recall 0.9544; India 0.9778, US 0.9837) and 0.96 on the public
     leaderboard. A perfect matcher on its candidates would score 0.9947.
@@ -244,7 +277,9 @@ evaluation links, and evaluation rows are scored exactly like test rows.
     the same address with another number, but the final model already linked only 0.46% of such pairs.
 
   French predictions read correctly on inspection. This is the most likely part of the gap between the evaluation
-  (0.985) and the leaderboard (0.970).
+  (0.985) and the leaderboard (0.970). The cross-encoder features narrowed it: they added 0.003 on the evaluation
+  slice but 0.008 on the leaderboard. That fits a pretrained multilingual text model transferring to an unseen
+  country better than hand-made string features.
 - **Common false positives (wrong merges):** 85% are distractors that look like a copy of the
   Source 1 record: the same name at a nearby number, the same number with a unit letter
   ("3027 c douglas ave"), or a name variant at the same address. In France, the same generic
@@ -263,8 +298,12 @@ evaluation links, and evaluation rows are scored exactly like test rows.
 | M-v5: test-like universe, number-gap features, 75% fitted | test-like evaluation slice | 0.9852 | 0.9957 | 0.9644 |
 | M-v5 | public leaderboard | 0.971 | | |
 | M-v6: + distinctive-part features | test-like evaluation slice | 0.9856 | 0.9960 | 0.9647 |
-| **M-v11: M-v6 + learned candidate filter (6.5 candidates per record, not 48.1)** | test-like evaluation slice | **0.9854** | 0.9962 | 0.9639 |
-| M-v11 | public leaderboard | **0.970** | | |
+| M-v11: M-v6 + learned candidate filter (6.5 candidates per record, not 48.1) | test-like evaluation slice | 0.9854 | 0.9962 | 0.9639 |
+| M-v11 | public leaderboard | 0.970 | | |
+| M-v25: + cross-encoder ce1 (4-layer BERT) | test-like evaluation slice | 0.9875 | 0.9979 | 0.9664 |
+| M-v26: + cross-encoder ce2 (multilingual-e5-small) instead | test-like evaluation slice | 0.9884 | 0.9981 | 0.9680 |
+| **M-v28: + both, with their competition context** | test-like evaluation slice | **0.9885** | 0.9983 | 0.9682 |
+| M-v28 | public leaderboard | **0.978** | | |
 
 ---
 
@@ -284,8 +323,14 @@ The organisers' emphasis on small candidate sets added a third lesson. The searc
 find hard links, but the matcher does not need to see that depth. A cheap learned filter on the
 search's own scores cut the candidate set 7.4-fold at a cost of 0.0002 F0.5.
 
-Final submission: M-v11, test-like evaluation F0.5 0.9854, public leaderboard 0.970. It scores the same as M-v5
-(0.971) within rounding, with a candidate set 7.4 times smaller.
+The last lesson came from a second pipeline in our team, a fine-tuned bi-encoder with a
+cross-encoder feature. Once string features, learners and losses had saturated, a
+different kind of evidence was what moved the score. A cross-encoder that reads both records
+together, trained and scored so that the classifier sees only out-of-sample values, added 0.008
+on the leaderboard.
+
+Final submission: M-v28, test-like evaluation F0.5 0.9885, public leaderboard 0.978, on the same
+6.5 candidates per record as M-v11.
 
 ---
 
@@ -299,7 +344,14 @@ features → train → predict) and writes `output/matching_results.tsv` and
 (`normalize`, `aliases`, `blocking`, `features`, `model`, `metrics`, `partition`, `versions`).
 `src/experiments/` holds the experiments behind each version: development-sample studies, the
 full-data error analysis (`full_errors.py`) and the train/test shift checks (`shift_check.py`).
-`README.md` gives the exact command and `requirements.txt` the pinned environment (Python 3.12).
+The cross-encoder features come from `src/experiments/cross_encoder.py`:
+- `export` writes the candidate pairs with their texts and cross-fitting halves;
+- `run` fine-tunes and scores ce1 on CPU or GPU;
+- `kaggle/run_ce.py` runs ce2 on two GPUs from the same module.
+
+`run_pipeline.py` then joins the scores (FEAT-v9) and trains the matcher. `README.md` gives the
+exact commands and `requirements.txt` the pinned environment (Python 3.12; PyTorch and
+transformers only for the cross-encoders).
 
 ### B. Additional Results
 
