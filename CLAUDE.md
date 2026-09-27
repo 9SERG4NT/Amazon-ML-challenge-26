@@ -71,7 +71,12 @@ comparable; 5.95 candidates per S1; leaderboard pending) is in `output/runs/TEAM
 converted to TSV (md5 `67bdd7f8…`, validator PASS). Cross-encoder features (2026-09-27): M-v25 (ce1, CPU 4-layer
 BERT) eval 0.9875, M-v26 (ce2, Kaggle multilingual-e5-small) 0.9884, **M-v28 (ce1 + ce2 + context) 0.9885, our best**
 (doubled-distractor 0.9882), all with M-v11's candidates; TSVs in `output/runs/<version key>/` (M-v28 md5
-`21ce5362…`, **public leaderboard 0.978**). The remaining gap is most likely France (implied ~0.89): next is M-v6 (FEAT-v4). Before it came FULL-v1
+`21ce5362…`, **public leaderboard 0.978**). The top-level `output/` files are M-v28's and
+`Team_Sumukh_submission.zip` (repo root, git-ignored, validator PASS) is the fallback final package. 2026-09-27:
+`serg4nt/mlc26-ce3` (Kaggle, multilingual-e5-base cross-encoder → FEAT-v10 / M-v29) and `serg4nt/mlc26-team` (the
+teammates' whole pipeline, stage 1 with hard negatives + stage 2 with the longer cross-encoder and saved validation/test
+pair scores, from `infra/kaggle/team/`, kept out of git because it holds the teammates' source) feed M-v29 and
+`experiments/combine_team.py`. The AWS login of 11:04 IST expires about 23:04 IST. The remaining gap is most likely France (implied ~0.89): next is M-v6 (FEAT-v4). Before it came FULL-v1
 (`predictions/M-v3/`, eval F0.5 0.9813, **public leaderboard 0.96**; top of the board 0.99),
 which is kept in `output/runs/`.
 Output naming: `output/matching_results.tsv` and `output/candidate_pairs.tsv` are the current submission

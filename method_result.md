@@ -161,6 +161,10 @@ Copy the template below for each run, newest entry first. Record every run, incl
   held out: the team's validation 10% that are also in our test-like universe, where our scores are out-of-fold. The
   rule is chosen on the out-of-fold scores and compared with each side alone on the same entities. Output only if
   the combination wins. The candidate file is the union.
+- **Running the team pipeline ourselves.** Its notebooks and stage-1 output are not visible to `serg4nt`. The
+  downloaded notebook, however, holds the whole pipeline source, so `serg4nt/mlc26-team` (Kaggle, 2× T4, from 11:33
+  IST) runs it end to end on our copy of the data. Stage 1 runs with the hard-negative round, the R5 setting; stage 2
+  runs with the three edits above. The source stays out of the public repository.
 - **Dry run at full scale** (a stand-in "team" built from M-v11's scores in the team's file format, against M-v28):
   114,638 shared validation S1 and 686,676 union pairs. M-v11 0.9852, M-v28 0.9885, their mean 0.9881, the combiner
   0.9885 (as expected: M-v11 adds nothing to M-v28). Test: 11.19M union pairs. **1 min 16 s, 9.1 GB peak.**
