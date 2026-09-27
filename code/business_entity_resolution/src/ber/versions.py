@@ -195,6 +195,9 @@ FEAT = _index(
     Feat("FEAT-v9", "FEAT-v4 + both cross-encoders (ce1: 4-layer BERT on normalised text; ce2: multilingual-e5-small on "
                     "raw text) with their competition context (77)",
          number_gap=True, distinct=True, base="FEAT-v4", extra=("ce1", "ce2"), extra_context=True),
+    Feat("FEAT-v10", "FEAT-v9 + ce3: the same cross-fitted feature from intfloat/multilingual-e5-base (MIT, 278M) on raw "
+                     "texts, 1.2M training pairs per half (Kaggle 2x T4), with its competition context (83)",
+         number_gap=True, distinct=True, base="FEAT-v4", extra=("ce1", "ce2", "ce3"), extra_context=True),
 )
 
 MATCH = _index(
@@ -331,6 +334,7 @@ PRESETS = {
     "M-v26": ("NORM-v2", "BLK-v5-tlu40", "FEAT-v7", "MATCH-v6"),
     "M-v27": ("NORM-v2", "BLK-v5-tlu40", "FEAT-v8", "MATCH-v6"),
     "M-v28": ("NORM-v2", "BLK-v5-tlu40", "FEAT-v9", "MATCH-v6"),
+    "M-v29": ("NORM-v2", "BLK-v5-tlu40", "FEAT-v10", "MATCH-v6"),
 }
 DEFAULT_PRESET = "M-v3"
 
