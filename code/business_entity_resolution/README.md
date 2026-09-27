@@ -192,7 +192,8 @@ src/
 kaggle/
   run_ce.py            ce2 / ce3 on two GPUs (one cross-fitting half per GPU), using experiments/cross_encoder.py
 team_pipeline/         pipeline B (the teammates' bi-encoder + XGBoost pipeline, run on Kaggle): src/, its notebook,
-                       README and pinned requirements. It ships in the submission zip; it is not in the public repository
+                       README and pinned requirements. It ships in the submission zip (Team_Sumukh_submission.zip at the
+                       repository root); it is not a folder of the repository itself
 ```
 
 `infra/aws/` (repository root) holds the AWS setup: SageMaker training-job launcher, EC2
