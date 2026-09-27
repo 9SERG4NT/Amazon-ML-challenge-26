@@ -4,13 +4,12 @@
 file uploaded to the leaderboard, and the two files `make_submission.py` packs. They must keep
 these exact names.
 
-**The two files at the top of this folder are M-v28's** (2026-09-27, 11:25 IST): our best complete run, public
-leaderboard **0.978**, eval 0.9885, M-v11's candidate file (md5 `64f56033…`, matches `21ce5362…`).
-`Team_Sumukh_submission.zip` (repository root, git-ignored) is the fallback final package built from them with
-`make_submission.py --team "Team_Sumukh"` (validator PASS, 34 files, 112.6 MB). The teammates' run scores 0.980; it
-or a combination of both pipelines replaces this if it wins before the deadline (2026-09-27 23:59 IST).
+**From 11:25 to 17:50 IST the top-level files were M-v28's** (public leaderboard 0.978, eval 0.9885, md5
+`21ce5362…`; kept in `runs/`). `Team_Sumukh_submission.zip` (repository root, git-ignored) still holds that M-v28
+package (validator PASS, 34 files, 112.6 MB) until it is rebuilt for COMB-v1.
 
-**COMB-v1 (2026-09-27, 17:38 IST): the next leaderboard upload.** `experiments/combine_team.py` learns how to weigh
+**COMB-v1 (2026-09-27): public leaderboard 0.98462, the final submission. The two files at the top of this folder
+are COMB-v1's since 17:50 IST (M-v28's before).** `experiments/combine_team.py` learns how to weigh
 M-v29 and the team pipeline (our Kaggle re-run R6) on the union of their candidate sets, from the 87,911 train S1
 that both held out: F0.5 **0.9914** there, against 0.9885 (M-v29) and 0.9877 (team). French probabilities get the
 team's label-free empty-share calibration: 94.2% of S1 linked in every country, France 3.31 links per S1. 7.48
@@ -32,7 +31,7 @@ in git: `*.tsv` is ignored outside the top of this folder, and `candidate_pairs.
 | M-v6 (Kaggle TPU run) | `NORM-v2__BLK-v4b@20-tlu40__FEAT-v4__MATCH-v6` | test-like | 0.9856 | pending | `f055edc3edaeb41e0204d35dae4be8e9` |
 | **M-v11** (EC2, current) | `NORM-v2__BLK-v5-tlu40__FEAT-v4__MATCH-v6` | test-like | 0.9854 | **0.970** | `f96f52d773991cc04870a36cf4b3ed46` |
 | M-v7 (rejected, not downloaded) | `NORM-v2__BLK-v4b@20-dup2__FEAT-v4__MATCH-v6` | doubled distractors (copies) | 0.9856 | not submitted | — |
-| **COMB-v1** (learned combination of M-v29 and the team pipeline R6, France calibrated; the upload candidate) | `COMB-v1__M-v29__TEAM-R6__fr-auto` | shared held-out S1 of both pipelines (87,911) | **0.9914** (M-v29 0.9885, team 0.9877 on the same S1) | pending | `c0b7f4515fba3e0358cbf2dfc39b2564` |
+| **COMB-v1** (learned combination of M-v29 and the team pipeline R6, France calibrated; the upload candidate) | `COMB-v1__M-v29__TEAM-R6__fr-auto` | shared held-out S1 of both pipelines (87,911) | **0.9914** (M-v29 0.9885, team 0.9877 on the same S1) | **0.98462** | `c0b7f4515fba3e0358cbf2dfc39b2564` |
 | TEAM-R6 (the team pipeline, our Kaggle re-run) | `TEAM-R6__e5-FAISS__XGBoost-CE` | their own 10% held out | 0.9875 (not comparable) | not submitted | `4e5681a517441c308a965dc705fdcf0b` |
 | **M-v29** (M-v28 + the e5-base cross-encoder) | `NORM-v2__BLK-v5-tlu40__FEAT-v10__MATCH-v6` | test-like | **0.9887** | pending | `ff8c6886617af3a77cb02ee1d0b4f04d` |
 | **M-v28** (M-v11 + both cross-encoders + their context) | `NORM-v2__BLK-v5-tlu40__FEAT-v9__MATCH-v6` | test-like | **0.9885** | **0.978** | `21ce5362e10b414c0ecf78c365321c0c` |
