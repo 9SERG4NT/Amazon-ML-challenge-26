@@ -181,6 +181,9 @@ def main() -> None:
     ap.add_argument("--force", action="store_true")
     ap.add_argument("--extra", nargs=3, action="append", default=[], metavar=("NAME", "TRAIN", "TEST"),
                     help="a further scorer's pairs (s1_id, cand_id, p) for train and test; repeatable")
+    ap.add_argument("--clip", type=float, default=0.0,
+                    help="clip every input probability to [clip, 1 - clip]: removes the models' saturation constants, which "
+                         "differ between out-of-fold (train) and fold-averaged (test) scores")
     ap.add_argument("--adversarial", action="store_true", help="report a train-vs-test classifier on the combiner's features")
     ap.add_argument("--seeds", type=int, default=1, help="repeat the cross-fitting over this many fold splits and average")
     ap.add_argument("--xgb", action="store_true", help="also fit an XGBoost per fold and average it with the LightGBM")
@@ -191,8 +194,9 @@ def main() -> None:
     out, team = Path(a.out), Path(a.team)
     out.mkdir(parents=True, exist_ok=True)
 
-    Tv = team_pairs(team, "train")
-    Ov = pl.read_parquet(a.ours_train).select("s1_id", "cand_id", pl.col("p").cast(pl.Float64))
+    cp = (lambda d: d.with_columns(pl.col("p").clip(a.clip, 1 - a.clip))) if a.clip > 0 else (lambda d: d)
+    Tv = cp(team_pairs(team, "train"))
+    Ov = cp(pl.read_parquet(a.ours_train).select("s1_id", "cand_id", pl.col("p").cast(pl.Float64)))
     shared = (Tv.filter(pl.col("is_val")).select("s1_id").unique()
               .join(Ov.select("s1_id").unique(), on="s1_id", how="semi")["s1_id"].sort())  # sorted: same folds on every run
     log(f"team validation S1 {Tv.filter(pl.col('is_val'))['s1_id'].n_unique():,}; in our universe too: {shared.len():,}")
@@ -200,7 +204,7 @@ def main() -> None:
           .rename({"source1_entity_id": "s1_id"}).filter(pl.col("s1_id").is_in(shared.implode())))
     links = (gt.with_columns(pl.col("matched_entity_ids").fill_null("").str.split(",")).explode("matched_entity_ids")
              .filter(pl.col("matched_entity_ids") != "").select("s1_id", pl.col("matched_entity_ids").alias("cand_id")))
-    load = lambda f: pl.read_parquet(f).select("s1_id", "cand_id", pl.col("p").cast(pl.Float64))
+    load = lambda f: cp(pl.read_parquet(f).select("s1_id", "cand_id", pl.col("p").cast(pl.Float64)))
     V = union_features(Tv.drop("y", "is_val"), Ov, shared, tuple((n, load(tr)) for n, tr, _ in a.extra))
     keep = pl.max_horizontal(pl.col("p_team").fill_null(0), pl.col("p_ours").fill_null(0)) >= a.prefilter
     if a.prefilter > 0:
@@ -256,8 +260,8 @@ def main() -> None:
         log("the combination does not beat the better single pipeline on validation: no output written")
         return
 
-    Tt = team_pairs(team, "test")
-    Ot = pl.read_parquet(a.ours_test).select("s1_id", "cand_id", pl.col("p").cast(pl.Float64))
+    Tt = cp(team_pairs(team, "test"))
+    Ot = cp(pl.read_parquet(a.ours_test).select("s1_id", "cand_id", pl.col("p").cast(pl.Float64)))
     U = union_features(Tt, Ot, None, tuple((n, load(te)) for n, _, te in a.extra)).sort(["s1_id", "cand_id"])
     if a.prefilter > 0:
         U = U.filter(keep)
