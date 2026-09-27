@@ -68,13 +68,18 @@ def side_context(S: pl.DataFrame, name: str) -> pl.DataFrame:
                     pl.len().over("s1_id").cast(pl.Float32).alias(f"{name}_n_q"))
 
 
-def union_features(T: pl.DataFrame, O: pl.DataFrame, keep_s1: pl.Series | None) -> pl.DataFrame:
-    """Union of both sides' pairs (context computed on each side's full pair set, then restricted to keep_s1)."""
+def union_features(T: pl.DataFrame, O: pl.DataFrame, keep_s1: pl.Series | None, extras: tuple = ()) -> pl.DataFrame:
+    """Union of both sides' pairs (context computed on each side's full pair set, then restricted to keep_s1).
+    extras: (name, pairs) of further scorers; they annotate the union's pairs and never add pairs."""
     Tc, Oc = side_context(T, "team"), side_context(O, "ours")
+    Xc = [side_context(X, n) for n, X in extras]
     if keep_s1 is not None:
         k = keep_s1.implode()
         Tc, Oc = Tc.filter(pl.col("s1_id").is_in(k)), Oc.filter(pl.col("s1_id").is_in(k))
+        Xc = [x.filter(pl.col("s1_id").is_in(k)) for x in Xc]
     U = Tc.join(Oc, on=["s1_id", "cand_id"], how="full", coalesce=True)
+    for x in Xc:
+        U = U.join(x, on=["s1_id", "cand_id"], how="left")
     return U.with_columns(
         pl.col("p_team").is_not_null().cast(pl.Float32).alias("in_team"),
         pl.col("p_ours").is_not_null().cast(pl.Float32).alias("in_ours"),
@@ -138,6 +143,8 @@ def main() -> None:
     ap.add_argument("--folds", type=int, default=5)
     ap.add_argument("--threads", type=int, default=0)
     ap.add_argument("--force", action="store_true")
+    ap.add_argument("--extra", nargs=3, action="append", default=[], metavar=("NAME", "TRAIN", "TEST"),
+                    help="a further scorer's pairs (s1_id, cand_id, p) for train and test; repeatable")
     ap.add_argument("--france-shift", default="none", help="'auto' (the team's empty-share calibration), a number, or 'none'")
     a = ap.parse_args()
     out, team = Path(a.out), Path(a.team)
@@ -152,7 +159,8 @@ def main() -> None:
           .rename({"source1_entity_id": "s1_id"}).filter(pl.col("s1_id").is_in(shared.implode())))
     links = (gt.with_columns(pl.col("matched_entity_ids").fill_null("").str.split(",")).explode("matched_entity_ids")
              .filter(pl.col("matched_entity_ids") != "").select("s1_id", pl.col("matched_entity_ids").alias("cand_id")))
-    V = union_features(Tv.drop("y", "is_val"), Ov, shared)
+    load = lambda f: pl.read_parquet(f).select("s1_id", "cand_id", pl.col("p").cast(pl.Float64))
+    V = union_features(Tv.drop("y", "is_val"), Ov, shared, tuple((n, load(tr)) for n, tr, _ in a.extra))
     V = V.join(links.with_columns(pl.lit(1, pl.Int8).alias("y")), on=["s1_id", "cand_id"], how="left").with_columns(pl.col("y").fill_null(0))
     feats = [c for c in V.columns if c not in ("s1_id", "cand_id", "y")]
     cover = {k: int(V[k].sum()) for k in ("in_team", "in_ours")}
@@ -190,7 +198,7 @@ def main() -> None:
 
     Tt = team_pairs(team, "test")
     Ot = pl.read_parquet(a.ours_test).select("s1_id", "cand_id", pl.col("p").cast(pl.Float64))
-    U = union_features(Tt, Ot, None).sort(["s1_id", "cand_id"])
+    U = union_features(Tt, Ot, None, tuple((n, load(te)) for n, _, te in a.extra)).sort(["s1_id", "cand_id"])
     Xt = U.select(feats).to_numpy().astype(np.float32)
     pt = np.mean([m.predict(Xt, num_iteration=m.best_iteration, num_threads=a.threads) for m in models], axis=0)
     U = U.with_columns(pl.Series("p_comb", pt))
