@@ -455,7 +455,25 @@ The cross-encoder features come from `src/experiments/cross_encoder.py`:
 its README and pinned requirements. `README.md` gives the exact commands for all three, and `requirements.txt` the
 pinned environment (Python 3.12; PyTorch and transformers only for the cross-encoders).
 
-### B. Additional Results
+### B. Model and licence compliance
+
+Every model is open-weight or trained from scratch. Each is MIT or Apache-2.0 and under 8B parameters on its own.
+Every model is fine-tuned or trained only on the provided training data and runs offline: the pretrained weights are
+downloaded once from the Hugging Face hub. No hosted LLM API or external data is used anywhere in the pipeline.
+
+| Model | Role | Licence | Parameters | Trained / fine-tuned on |
+|---|---|---|---:|---|
+| `google/bert_uncased_L-4_H-256_A-4` | pipeline A: cross-encoder ce1 (pair feature) | Apache-2.0 | 11M | training pairs only, cross-fitted |
+| `intfloat/multilingual-e5-small` | pipeline A: cross-encoder ce2; pipeline B: bi-encoder (blocking) and cross-encoder | MIT | 118M | training pairs only |
+| `intfloat/multilingual-e5-base` | pipeline A: cross-encoder ce3 | MIT | 278M | training pairs only, cross-fitted |
+| LightGBM models | pipeline A: candidate filter, stage-1/2 matcher; the combination | MIT (library) | trees | trained from scratch on the provided data |
+| XGBoost model | pipeline B: matcher | Apache-2.0 (library) | trees | trained from scratch on the provided data |
+| Logistic regression (scikit-learn, BSD-3) | pipeline B: graph filter of the candidates | trained from scratch | 7 weights | trained from scratch on the provided data |
+
+Preprocessing uses no model. It uses rules and a fixed transliteration table (`anyascii`, ISC licence, which is
+permissive like MIT), plus per-country token aliases learned from the training links.
+
+### C. Additional Results
 
 Full experiment log with every version, including the full-data tables, the shift analysis and
 the France study: `method_result.md`.
