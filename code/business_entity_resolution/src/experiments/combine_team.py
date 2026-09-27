@@ -36,6 +36,8 @@ T0 = time.time()
 PARAMS = {"objective": "binary", "learning_rate": 0.05, "num_leaves": 63, "min_data_in_leaf": 200,
           "feature_fraction": 0.9, "bagging_fraction": 0.8, "bagging_freq": 1, "lambda_l2": 1.0, "verbose": -1,
           "seed": 42, "deterministic": True, "force_row_wise": True}  # same file on every run
+XGB_PARAMS = {"objective": "binary:logistic", "eval_metric": "logloss", "eta": 0.05, "max_depth": 8, "min_child_weight": 5,
+              "subsample": 0.8, "colsample_bytree": 0.9, "lambda": 1.0, "tree_method": "hist"}
 RULES = ([("threshold", t) for t in np.round(np.arange(0.30, 0.91, 0.05), 2)]
          + [("expected_f", f) for f in (0.05, 0.1, 0.2, 0.3, 0.4, 0.5)]
          + [("gated", g) for g in (0.3, 0.4, 0.5, 0.55, 0.6, 0.65, 0.7)])
@@ -127,6 +129,40 @@ def macro_f05(pred: pl.DataFrame, links: pl.DataFrame, ids: pl.Series) -> dict:
             "f05_singletons": e.filter(pl.col("n_true") == 0)["f"].mean(), "n": e.height}
 
 
+def auc(y: np.ndarray, score: np.ndarray) -> float:
+    """Area under the ROC curve from ranks (ties ignored)."""
+    r = score.argsort().argsort() + 1.0
+    n1 = float(y.sum())
+    n0 = len(y) - n1
+    return float((r[y == 1].sum() - n1 * (n1 + 1) / 2) / (n1 * n0))
+
+
+def adversarial(V: pl.DataFrame, U: pl.DataFrame, feats: list, train_s1: str, test_s1: str, threads: int) -> dict:
+    """Train-vs-test classifier on the combiner's features: how far the test pairs sit from the pairs it learned on.
+    3 folds grouped by S1; AUC overall and per test country (each against all train pairs); top features by gain."""
+    n = min(V.height, U.height, 300_000)
+    cty = lambda f: pl.read_csv(f, separator="\t", quote_char=None, columns=["entity_id", "country"]).rename({"entity_id": "s1_id"})
+    A = V.select("s1_id", *feats).sample(n, seed=7).join(cty(train_s1), on="s1_id", how="left").with_columns(pl.lit(0).alias("is_test"))
+    B = U.select("s1_id", *feats).sample(n, seed=7).join(cty(test_s1), on="s1_id", how="left").with_columns(pl.lit(1).alias("is_test"))
+    D = pl.concat([A, B]).with_columns((pl.col("s1_id").hash(seed=3) % 3).alias("fold"))
+    X, y, fold = D.select(feats).to_numpy().astype(np.float32), D["is_test"].to_numpy(), D["fold"].to_numpy()
+    s = np.zeros(D.height)
+    gain = np.zeros(len(feats))
+    for f in range(3):
+        m = lgb.train({"objective": "binary", "learning_rate": 0.1, "num_leaves": 63, "min_data_in_leaf": 200, "verbose": -1,
+                       "seed": 7, "num_threads": threads, "deterministic": True, "force_row_wise": True},
+                      lgb.Dataset(X[fold != f], label=y[fold != f], feature_name=feats), 200)
+        s[fold == f] = m.predict(X[fold == f], num_threads=threads)
+        gain += m.feature_importance("gain")
+    out = {"auc": auc(y, s)}
+    country = D["country"].to_numpy()
+    for c in sorted(set(D.filter(pl.col("is_test") == 1)["country"].drop_nulls().to_list())):
+        k = (y == 0) | (country == c)
+        out[f"auc_{c}"] = auc(y[k], s[k])
+    out["top_features"] = [(feats[i], round(float(gain[i] / gain.sum()), 3)) for i in np.argsort(-gain)[:8]]
+    return out
+
+
 def best_rule(U: pl.DataFrame, col: str, links, ids) -> tuple:
     res = [((r, p), macro_f05(decide(U, col, r, p), links, ids)) for r, p in RULES]
     return max(res, key=lambda x: x[1]["f05"])
@@ -145,6 +181,9 @@ def main() -> None:
     ap.add_argument("--force", action="store_true")
     ap.add_argument("--extra", nargs=3, action="append", default=[], metavar=("NAME", "TRAIN", "TEST"),
                     help="a further scorer's pairs (s1_id, cand_id, p) for train and test; repeatable")
+    ap.add_argument("--adversarial", action="store_true", help="report a train-vs-test classifier on the combiner's features")
+    ap.add_argument("--seeds", type=int, default=1, help="repeat the cross-fitting over this many fold splits and average")
+    ap.add_argument("--xgb", action="store_true", help="also fit an XGBoost per fold and average it with the LightGBM")
     ap.add_argument("--prefilter", type=float, default=0.0,
                     help="drop union pairs that both pipelines score below this (a filter stage before the combination)")
     ap.add_argument("--france-shift", default="none", help="'auto' (the team's empty-share calibration), a number, or 'none'")
@@ -173,20 +212,36 @@ def main() -> None:
     log(f"validation union: {V.height:,} pairs ({cover}), true links found {found:,} of {links.height:,}; "
         f"{len(feats)} features")
 
-    rng = np.random.default_rng(42)
-    fold_of = pl.DataFrame({"s1_id": shared, "fold": rng.integers(0, a.folds, shared.len())})
-    V = V.join(fold_of, on="s1_id", how="left").sort(["s1_id", "cand_id"])
-    X, y, fold = V.select(feats).to_numpy().astype(np.float32), V["y"].to_numpy(), V["fold"].to_numpy()
+    if a.xgb:
+        import xgboost as xgb
+    V = V.sort(["s1_id", "cand_id"])
+    X, y = V.select(feats).to_numpy().astype(np.float32), V["y"].to_numpy()
     p = np.zeros(V.height)
-    models = []
-    for f in range(a.folds):
-        tr, te = fold != f, fold == f
-        es = tr & (rng.random(V.height) < 0.1)
-        m = lgb.train({**PARAMS, "num_threads": a.threads}, lgb.Dataset(X[tr & ~es], label=y[tr & ~es], feature_name=feats), 3000,
-                      valid_sets=[lgb.Dataset(X[es], label=y[es])], callbacks=[lgb.early_stopping(100, verbose=False)])
-        p[te] = m.predict(X[te], num_iteration=m.best_iteration, num_threads=a.threads)
-        models.append(m)
-        log(f"fold {f}: {m.best_iteration} trees")
+    models = []  # (kind, model); a test pair's probability is their mean
+    for r in range(a.seeds):  # r = 0 is COMB-v1/v2's single cross-fitting; further repeats average other fold splits
+        rng = np.random.default_rng(42 + r)
+        fold_of = pl.DataFrame({"s1_id": shared, "fold": rng.integers(0, a.folds, shared.len())})
+        fold = V.select("s1_id").join(fold_of, on="s1_id", how="left", maintain_order="left")["fold"].to_numpy()
+        pr = np.zeros(V.height)
+        for f in range(a.folds):
+            tr, te = fold != f, fold == f
+            es = tr & (rng.random(V.height) < 0.1)
+            m = lgb.train({**PARAMS, "seed": 42 + r, "num_threads": a.threads},
+                          lgb.Dataset(X[tr & ~es], label=y[tr & ~es], feature_name=feats), 3000,
+                          valid_sets=[lgb.Dataset(X[es], label=y[es])], callbacks=[lgb.early_stopping(100, verbose=False)])
+            pf = [m.predict(X[te], num_iteration=m.best_iteration, num_threads=a.threads)]
+            models.append(("lgb", m))
+            msg = f"seed {r} fold {f}: {m.best_iteration} trees"
+            if a.xgb:
+                bst = xgb.train({**XGB_PARAMS, "seed": 42 + r, "nthread": a.threads},
+                                xgb.DMatrix(X[tr & ~es], label=y[tr & ~es]), 3000,
+                                evals=[(xgb.DMatrix(X[es], label=y[es]), "es")], early_stopping_rounds=100, verbose_eval=False)
+                pf.append(bst.predict(xgb.DMatrix(X[te]), iteration_range=(0, bst.best_iteration + 1)))
+                models.append(("xgb", bst))
+                msg += f", xgb {bst.best_iteration + 1}"
+            pr[te] = np.mean(pf, axis=0)
+            log(msg)
+        p += pr / a.seeds
     V = V.with_columns(pl.Series("p_comb", p))
 
     res = {}
@@ -207,8 +262,14 @@ def main() -> None:
     if a.prefilter > 0:
         U = U.filter(keep)
     Xt = U.select(feats).to_numpy().astype(np.float32)
-    pt = np.mean([m.predict(Xt, num_iteration=m.best_iteration, num_threads=a.threads) for m in models], axis=0)
+    one = lambda k, m: (m.predict(Xt, num_iteration=m.best_iteration, num_threads=a.threads) if k == "lgb"
+                        else m.predict(xgb.DMatrix(Xt), iteration_range=(0, m.best_iteration + 1)))
+    pt = np.mean([one(k, m) for k, m in models], axis=0)
     U = U.with_columns(pl.Series("p_comb", pt))
+    if a.adversarial:
+        adv = adversarial(V, U, feats, str(Path(a.truth).parent / "train_source1.tsv"), a.s1, a.threads)
+        log(f"adversarial validation: {json.dumps(adv)}")
+        (out / "adversarial.json").write_text(json.dumps(adv, indent=1))
     U.select("s1_id", "cand_id", "p_comb").write_parquet(out / "test_scores.parquet")
     rule = res["p_comb"]["rule"]
     S1 = pl.read_csv(a.s1, separator="\t", quote_char=None, columns=["entity_id", "country"]).rename({"entity_id": "s1_id"})
