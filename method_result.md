@@ -107,6 +107,7 @@ Unless noted, the scores are on the DEV-10 **evaluation slice**: 20% of the DEV-
 | **M-v29** | 2026-09-27 | M-v28 + ce3, a multilingual-e5-base cross-encoder (278M), all three with their context (FEAT-v10, 83 features); gated expected-F (gate 0.55). Test-like eval slice | 98.21% | 6.0 | **0.9887** | 0.9984 | 0.9685 | 0.9942 / 0.9884 | pending | **Best eval and doubled-distractor (0.9884).** India 0.9865, US 0.9902. Test: France 94.1% linked, 3.20 links per S1. md5 `ff8c6886…` |
 | **M-v28** | 2026-09-27 | M-v11 + both cross-encoders (ce1 + ce2) with their competition context (FEAT-v9, 77 features); gated expected-F (gate 0.5). Test-like eval slice | 98.21% | 6.0 | **0.9885** | 0.9983 | 0.9682 | 0.9934 / 0.9883 | **0.978** (public) | **Best eval and doubled-distractor (0.9882).** India 0.9864, US 0.9900. Test: France 94.2% linked, 3.22 links per S1. Same candidates as M-v11 |
 | **COMB-v1** | 2026-09-27 | Learned combination of M-v29 and the team pipeline (re-run R6) on the union of both candidate sets: a LightGBM on each side's probability and competition context (16 features), cross-fitted on the 87,911 S1 that both pipelines held out; gated expected-F (gate 0.65); French empty-share calibration (logit shift 1.15). **Shared validation**, not comparable with the rows above | 99.31% | 6.50 (test 7.48) | **0.9914** | 0.9982 | 0.9772 | 0.9957 / — | **0.98462** (public) | **Best leaderboard score, the final submission.** Same entities: M-v29 0.9885, team R6 0.9877, plain mean of the two 0.9905. Test: 94.2% of S1 linked in every country, France 3.31 links per S1. See section 5 |
+| **COMB-v2** | 2026-09-27 | COMB-v1 + a pre-filter: union pairs that both pipelines score below 0.1 are dropped before the combination (`--prefilter 0.1`, cut-off chosen on the shared validation). **Shared validation** | 98.92% | 3.58 (test 3.68) | **0.9914** | 0.9981 | 0.9773 | 0.9940 / — | not uploaded (COMB-v1: 0.98462) | **Submitted files.** Half COMB-v1's candidate set (7.48 per test S1) at the same held-out F0.5 (0.99139 vs 0.99140) |
 | TEAM-R6 (team pipeline, our Kaggle re-run) | 2026-09-27 | The team's pipeline run end to end by us (`serg4nt/mlc26-team`, 2× T4, 4 h 44 min) without the hard-negative round; scores saved for the combination. Their own validation | 98.09% | 4.89 (test 6.18) | 0.9875 | — | — | 0.9935 / 0.9871 | not submitted | Validator PASS. Differs from R5 on 20% of French S1 (India 5.5%, US 4.6%). France 3.25 links per S1 after its calibration |
 | TEAM-B-R5 (teammates) | 2026-09-26 | The team's second pipeline: fine-tuned e5-small bi-encoder + FAISS blocking, graph filter, XGBoost with a cross-encoder score, expected F0.5, French logit shift. **Their own validation** (10% of train S1 held out), not comparable with the rows above | 98.16% | 4.78 | 0.9875 | — | — | 0.9850 / 0.9876 | pending | 5.95 candidates per test S1. Links more than M-v11 (France 3.17 against 3.13 per S1). See section 5 |
 
@@ -211,6 +212,29 @@ Copy the template below for each run, newest entry first. Record every run, incl
   +0.00005 is below the noise of a rule choice, so COMB-v1 stays. What pipeline A knows is already in M-v29's
   probability; the combination's gain comes from pipeline B's different search and cross-encoder, and more views of A
   add nothing. Not uploaded.
+- **COMB-v2: a pre-filter halves the candidate set (18:10 IST).** Many union pairs are ones both pipelines already
+  reject, yet each still counts as a candidate, and the organisers rank a smaller candidate set higher.
+  `--prefilter x` drops union pairs where both pipelines score below x, before the combination is trained and applied.
+  Selection rule, fixed before the sweep: the largest cut-off whose shared-validation F0.5 stays within 0.0001 of
+  COMB-v1's (no leaderboard involved).
+
+  | Cut-off | Held-out pairs per S1 | True links kept (of 304,416) | Held-out F0.5 | Test candidates per S1 | Test links |
+  |---|---:|---:|---:|---:|---:|
+  | none (COMB-v1) | 6.50 | 302,314 | 0.99140 | 7.48 | 5,840,814 |
+  | 0.01 | 3.99 | 302,250 | 0.99138 | 4.21 | 5,840,058 |
+  | 0.03 | 3.81 | 302,006 | 0.99140 | 3.95 | 5,838,225 |
+  | 0.05 | 3.69 | 301,658 | 0.99142 | 3.81 | 5,841,028 |
+  | **0.1** | 3.58 | 301,115 | 0.99139 | **3.68** | 5,836,877 |
+  | 0.2 | 3.51 | 300,529 | 0.99132 | 3.59 | 5,838,859 |
+  | 0.3 | 3.47 | 299,976 | 0.99130 | — | — |
+
+  F0.5 is flat up to 0.1 and falls from 0.2 on. Read literally, the rule would allow 0.3, which sits exactly on the
+  line, but the curve is already falling there for 0.1 fewer candidates per S1, so **0.1** is kept: the last point
+  before the decline. The links the filter drops are ones the combination would not have chosen anyway. France
+  keeps 94.2% of S1 linked, with 3.29 links per S1. **COMB-v2 = COMB-v1 + `--prefilter 0.1`**:
+  6,376,308 test candidates (**3.68 per S1**, against 7.48; pipeline A alone 6.5, B 6.18) at the same held-out F0.5.
+  It becomes the submitted version. Its leaderboard score is expected to equal COMB-v1's within noise (0.98462); a
+  check upload is optional and would only guard against a bug, not choose between the two.
   Files in `output/runs/COMB-v1__M-v29__TEAM-R6__fr-auto/` and `s3://…/predictions/COMB-v1__M-v29__TEAM-R6__fr-auto/`.
 
 ### A cross-encoder feature, the team pipeline's main idea (FEAT-v6 / FEAT-v7 → M-v25 / M-v26)

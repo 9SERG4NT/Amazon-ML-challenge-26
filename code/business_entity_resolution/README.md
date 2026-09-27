@@ -1,8 +1,9 @@
 # Business Entity Resolution
 
 End-to-end pipeline for the Amazon ML Challenge 2026: for every Source 1 record, find the
-Source 2 / Source 3 records of the same business. The final submission, **COMB-v1** (public
-leaderboard **0.98462**), combines the team's two pipelines:
+Source 2 / Source 3 records of the same business. The final submission, **COMB-v2**, combines the
+team's two pipelines (COMB-v1, the same combination without the pre-filter, scored **0.98462** on the
+public leaderboard):
 
 - **Pipeline A (`src/`, preset M-v29):** normalise → sparse IDF search + learned candidate filter →
   pairwise features, including three fine-tuned cross-encoders' pair scores → two-stage LightGBM
@@ -13,7 +14,8 @@ leaderboard **0.98462**), combines the team's two pipelines:
 - **Combination (`src/experiments/combine_team.py`):** a LightGBM over the union of both candidate
   sets reads each pipeline's probability and competition context. It is trained on the training
   entities that both pipelines held out, where it scores 0.9914 against 0.9885 (A) and 0.9877 (B).
-  French probabilities get a label-free calibration.
+  French probabilities get a label-free calibration. A pre-filter first drops union pairs that both
+  pipelines score below 0.1: 3.68 candidates per test record instead of 7.48, at the same held-out F0.5.
 
 ## Setup
 
@@ -39,7 +41,7 @@ It is not in git: the files exceed GitHub's size limit.
 
 ## Run
 
-### The final submission (COMB-v1)
+### The final submission (COMB-v2)
 
 From `src/`, with `D=<dataset dir with train/ and test/>`, `W=<work dir>` and `R=<dir for the team run>`:
 
@@ -59,7 +61,8 @@ cd ../src
 
 # C. the combination (8 cores, ~2.5 min, 9 GB): writes matching_results.tsv, candidate_pairs.tsv, combine_validation.json
 python -m experiments.combine_team --team $R/stage2 --ours-train $W/m29_train.parquet --ours-test $W/m29_test.parquet \
-  --truth $D/train/train_ground_truth.tsv --s1 $D/test/test_source1.tsv --out ../../../output --threads 8 --france-shift auto
+  --truth $D/train/train_ground_truth.tsv --s1 $D/test/test_source1.tsv --out ../../../output --threads 8 --france-shift auto \
+  --prefilter 0.1        # without --prefilter: COMB-v1
 ```
 
 The combination is deterministic: two runs give byte-identical files. The team notebook that ran
@@ -128,8 +131,9 @@ End-to-end presets (`--list` prints them all; the default stays M-v3, the first 
 | M-v28 | M-v11 + ce1 + ce2 + their competition context (FEAT-v9) | eval 0.9885, leaderboard 0.978 |
 | **M-v29** | M-v28 + ce3, multilingual-e5-base (FEAT-v10) | **eval 0.9887; pipeline A of the final submission** |
 
-The final submission, **COMB-v1**, is not a preset: `experiments/combine_team.py` combines M-v29 with pipeline B
-(shared held-out F0.5 0.9914, **public leaderboard 0.98462**; see "The final submission" above).
+The final submission, **COMB-v2**, is not a preset: `experiments/combine_team.py` combines M-v29 with pipeline B
+(shared held-out F0.5 0.9914; COMB-v1, without the pre-filter, **public leaderboard 0.98462**; see "The final
+submission" above).
 
 ```bash
 python run_pipeline.py --list                          # every version and preset

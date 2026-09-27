@@ -17,10 +17,11 @@ Our submission combines the team's two complete pipelines.
   Test-like evaluation F0.5 0.9887.
 - **Pipeline B:** a fine-tuned multilingual bi-encoder with FAISS search generates candidates (6.2 per record),
   and XGBoost scores them, led by a cross-encoder score. Public leaderboard 0.980.
-- **The combination (COMB-v1):** a LightGBM reads both pipelines' probabilities and their competition context
-  on the union of their candidates (**7.5 per record**) and decides each entity's match list. It is trained on the
-  training entities that both pipelines held out, where it scores F0.5 **0.9914** (A alone 0.9885, B alone
-  0.9877). **Public leaderboard 0.98462.**
+- **The combination (COMB-v2):** the union of both pipelines' candidates, minus the pairs that both reject
+  (**3.7 per record**). A LightGBM reads both pipelines' probabilities and their competition context on these
+  pairs and decides each entity's match list. It is trained on the training entities that both pipelines held
+  out, where it scores F0.5 **0.9914** (A alone 0.9885, B alone 0.9877). **Public leaderboard 0.98462** (measured
+  for COMB-v1, the same combination without the pre-filter, which has the same held-out score).
 
 The ideas that carry most of the accuracy:
 
@@ -92,7 +93,7 @@ set small, and a learned combination of two independent pipelines.
 Every component is a named version recorded in `src/ber/versions.py`: normalisation (NORM),
 blocking (BLK), features (FEAT) and matcher (MATCH). Every stage caches its output under the
 versions it depends on, so any logged result can be re-run by name. The submitted run is
-**COMB-v1**: pipeline A's preset **M-v29 = NORM-v2 + BLK-v5-tlu40 + FEAT-v10 + MATCH-v6** (M-v11
+**COMB-v2**: pipeline A's preset **M-v29 = NORM-v2 + BLK-v5-tlu40 + FEAT-v10 + MATCH-v6** (M-v11
 plus three cross-encoder scores and their competition context), pipeline B (`team_pipeline/`), and
 the combination (`src/experiments/combine_team.py`, section 4.3).
 
@@ -163,10 +164,20 @@ the combination (`src/experiments/combine_team.py`, section 4.3).
   score scale. A logistic-regression graph filter, on graph features only, removes about 10% more.
 - Result: 98.09% of held-out true links found with 4.89 candidates per validation record, and 6.18 per test record.
 
-**The submitted candidate set is the union of both pipelines' candidates**: 12.96M test pairs, **7.48 per Source 1
-record** (pipeline A 11.19M, B 10.71M). On the training entities that both pipelines held out, the union holds
-**99.31%** of the true links. Alone, A finds 98.21% on its evaluation slice and B 98.09% on its held-out entities.
-`candidate_pairs.tsv` is exactly this set, and the combination scores every pair in it.
+**The submitted candidate set.**
+- **Union:** 12.96M test pairs, 7.48 per Source 1 record (pipeline A 11.19M, B 10.71M). On the training entities
+  that both pipelines held out, the union holds **99.31%** of the true links. Alone, A finds 98.21% on its
+  evaluation slice and B 98.09% on its held-out entities.
+- **Final filtering stage:** pairs that *both* pipelines score below 0.1 are dropped. Most union pairs are
+  low-ranked rivals that neither matcher believes in.
+- **Choosing the cut-off:** on the shared held-out entities we chose the largest cut-off whose F0.5 stayed within
+  0.0001 of the unfiltered combination, then stopped where the curve began to fall. The curve (held-out F0.5 →
+  test candidates per record): no filter 0.99140 → 7.48; 0.01: 0.99138 → 4.21; 0.05: 0.99142 → 3.81;
+  **0.1: 0.99139 → 3.68**; 0.2: 0.99132 → 3.59; 0.3: 0.99130.
+- **What it keeps:** 98.92% of the held-out true links. The links it drops are ones the combination would not have
+  chosen.
+- **Result:** **6.38M test pairs, 3.68 per Source 1 record**, fewer than either pipeline alone (6.5 and 6.2).
+  `candidate_pairs.tsv` is exactly this set, and the combination scores every pair in it.
 
 ---
 
@@ -288,9 +299,9 @@ evaluation links, and evaluation rows are scored exactly like test rows.
 - **France:** a label-free logit shift makes France's share of empty predictions equal to the trained countries'.
 - **Result:** validation F0.5 0.9875; public leaderboard 0.980.
 
-### 4.3 The combination (COMB-v1)
+### 4.3 The combination (COMB-v2)
 
-- **Inputs:** for every pair in the union of both candidate sets:
+- **Inputs:** for every pair in the filtered union of both candidate sets (section 3):
   - each pipeline's probability (missing when that pipeline's search did not produce the pair) and a flag for it;
   - each probability's competition context: rank and margin over the next candidate of the same Source 1 record,
     margin over the best rival Source 1 record for the same target, the record's top score and candidate count;
@@ -299,26 +310,27 @@ evaluation links, and evaluation rows are scored exactly like test rows.
   16 features in total.
 - **Training without leakage:** pipeline B holds out 10% of the training entities from all its models. Pipeline
   A's scores are out-of-fold or come from models that never saw the entity. The 87,911 training entities that
-  are both in B's held-out 10% and in A's test-like universe (571,098 union pairs) are therefore out-of-sample
-  for both pipelines.
+  are both in B's held-out 10% and in A's test-like universe (314,853 filtered union pairs) are therefore
+  out-of-sample for both pipelines.
 - **Model and rule:** a LightGBM (binary log loss, 63 leaves, early stopping) is cross-fitted over these entities
   in 5 folds. The decision rule is chosen on its out-of-fold probabilities: exclusive assignment, then gated
-  expected F0.5 with gate 0.65. Test pairs get the mean of the 5 fold models.
-- **France:** the same label-free shift as pipeline B's, applied to the combined probabilities (logit +1.15).
-  France then leaves 5.82% of its Source 1 records empty, as the other countries do, with 3.31 links per record.
+  expected F0.5 with gate 0.6. Test pairs get the mean of the 5 fold models.
+- **France:** the same label-free shift as pipeline B's, applied to the combined probabilities (logit +1.39).
+  France then leaves 5.80% of its Source 1 records empty, as the other countries do, with 3.29 links per record.
   That matches the estimate from the per-source record counts (3.31). Without the shift: 3.39.
 - **Why it helps:** on the same entities, a plain average of the two probabilities already scores 0.9905 against
-  0.9885 and 0.9877 for each alone. The learned combination scores 0.9914 (precision 0.9982, recall 0.9772,
-  singletons 0.9957). Most of the gain is recall at the same precision: each pipeline finds true links the other
+  0.9885 and 0.9877 for each alone. The learned combination scores 0.9914 (precision 0.9981, recall 0.9773,
+  singletons 0.9940). Most of the gain is recall at the same precision: each pipeline finds true links the other
   misses. The combination is deterministic: two runs give byte-identical files.
 
 ---
 
 ## 5. Results & Error Analysis
 
-- **F_0.5 Score (macro), final submission (COMB-v1): 0.9914** on the 87,911 training entities both pipelines held
-  out (precision 0.9982, recall 0.9772), and **0.98462 on the public leaderboard**. It links 94.2% of the test
-  Source 1 records in every country, with 3.31–3.39 links each.
+- **F_0.5 Score (macro), final submission (COMB-v2): 0.9914** on the 87,911 training entities both pipelines held
+  out (precision 0.9981, recall 0.9773). **0.98462 on the public leaderboard** was measured for COMB-v1, the same
+  combination without the pre-filter, which scores the same held-out F0.5 (0.99140). It links 94.2% of the test
+  Source 1 records in every country, with 3.29–3.39 links each, from 3.68 candidates per record.
 - **Pipeline A alone (M-v28):** **0.9885** on the test-like evaluation slice (441,521 entities;
   precision 0.9983, recall 0.9682, singletons 0.9934; India 0.9864, US 0.9900; 0.9882 when
   links to distractors count twice, the test's lookalike density); **public leaderboard 0.978**.
@@ -384,6 +396,7 @@ evaluation links, and evaluation rows are scored exactly like test rows.
 | Average of the two probabilities | entities both pipelines held out | 0.9905 | 0.9973 | 0.9769 |
 | **COMB-v1: learned combination** | entities both pipelines held out | **0.9914** | 0.9982 | 0.9772 |
 | **COMB-v1** | **public leaderboard** | **0.98462** | | |
+| **COMB-v2: + pre-filter, 3.68 candidates per record instead of 7.48 (submitted)** | entities both pipelines held out | **0.9914** | 0.9981 | 0.9773 |
 
 ---
 
@@ -413,9 +426,10 @@ The final lesson: two good pipelines built differently are worth more together t
 finds true links the other misses. A small model trained on entities that neither pipeline had seen learned how
 to weigh them, and moved the leaderboard score from 0.980 (the better single pipeline) to 0.98462.
 
-Final submission: COMB-v1, the learned combination of pipeline A (M-v29) and pipeline B. F0.5 0.9914 on the
-training entities both held out, **public leaderboard 0.98462**, 7.48 candidates per Source 1 record (the union of
-both pipelines' candidate sets).
+Final submission: COMB-v2, the learned combination of pipeline A (M-v29) and pipeline B, on the union of their
+candidate sets minus the pairs both reject: **3.68 candidates per Source 1 record**, fewer than either pipeline
+alone. F0.5 0.9914 on the training entities both held out; **public leaderboard 0.98462** (COMB-v1, the same
+combination before the pre-filter, with the same held-out score).
 
 ---
 

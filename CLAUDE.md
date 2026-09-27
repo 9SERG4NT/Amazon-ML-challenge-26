@@ -77,8 +77,11 @@ R6: stage 1 without hard negatives + stage 2 saving validation/test pair scores,
 git because it holds the teammates' source) feed `experiments/combine_team.py`. **FINAL: COMB-v1** = combine_team on
 M-v29 + team R6 with `--france-shift auto`: shared held-out F0.5 0.9914 (M-v29 0.9885, team 0.9877), **public
 leaderboard 0.98462** (best), 7.48 candidates per S1 (union), deterministic (md5 `c0b7f451…`, candidates `0c71b8c6…`).
-The top-level `output/` files are COMB-v1's (`output/runs/COMB-v1__M-v29__TEAM-R6__fr-auto/`,
-`s3://…278311879294/predictions/COMB-v1__M-v29__TEAM-R6__fr-auto/`). The final zip must add `team_pipeline/` (the
+**Submitted files: COMB-v2** = COMB-v1 + `--prefilter 0.1` (drop union pairs both pipelines score < 0.1; cut-off
+chosen on the shared held-out S1): 3.68 candidates per S1 instead of 7.48, same held-out F0.5 (0.99139), md5
+`8f85fe51…`, candidates `5213ea3b…`. The top-level `output/` files are COMB-v2's
+(`output/runs/COMB-v2__M-v29__TEAM-R6__fr-auto__pf0.1/`, `s3://…278311879294/predictions/COMB-v2__M-v29__TEAM-R6__fr-auto__pf0.1/`).
+Rule for the last hours: choose on the shared held-out S1 only; the leaderboard only confirms. The final zip must add `team_pipeline/` (the
 team's src extracted from `infra/kaggle/team/team_pipeline.ipynb` cells 5-18, the notebook, its README and the pinned
 `requirements.txt` from the R6 run) to the code dir: build a staging copy and pass `make_submission.py --code-dir`.
 Runner files: `/opt/mlc26/stack/` (team_r6/, m29_*, m28_*, m29p1_*, ce{1,2,3}_* exports, comb_* outputs). Tried after
