@@ -4,10 +4,11 @@
 file uploaded to the leaderboard, and the two files `make_submission.py` packs. They must keep
 these exact names.
 
-**Best public leaderboard score: TEAM-B-R5, 0.98** (the teammates' pipeline, in `runs/TEAM-B-R5__e5-FAISS__XGBoost-CE/`).
-It becomes the current submission once its own `candidate_pairs.tsv` is downloaded from their Kaggle notebook. Until
-then the two files at the top of this folder stay M-v11's: its matches with our candidate file would break the rule
-that every match is a candidate.
+**The two files at the top of this folder are M-v28's** (2026-09-27, 11:25 IST): our best complete run, public
+leaderboard **0.978**, eval 0.9885, M-v11's candidate file (md5 `64f56033…`, matches `21ce5362…`).
+`Team_Sumukh_submission.zip` (repository root, git-ignored) is the fallback final package built from them with
+`make_submission.py --team "Team_Sumukh"` (validator PASS, 34 files, 112.6 MB). The teammates' run scores 0.980; it
+or a combination of both pipelines replaces this if it wins before the deadline (2026-09-27 23:59 IST).
 
 **Current submission: M-v11** (`NORM-v2__BLK-v5-tlu40__FEAT-v4__MATCH-v6`, public leaderboard **0.970**): M-v6 behind
 the learned candidate filter, **6.5 candidates per S1 instead of 48.1**, stage-2 probabilities with the expected-F rule

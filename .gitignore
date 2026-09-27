@@ -18,3 +18,6 @@ venv/
 
 # rendered by infra/aws/ec2/launch_runner.sh
 infra/aws/ec2/.user_data.rendered.sh
+
+# final submission packages (built by make_submission.py; test predictions, not for the public repo)
+*_submission.zip
