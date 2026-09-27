@@ -139,7 +139,7 @@ if __name__ == "__main__":
         assert int(polars.__version__.split(".")[0]) >= 1
     except Exception:
         subprocess.run([sys.executable, "-m", "pip", "install", "-q", "polars>=1.0"], check=False)
-    local = os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])), "..", "src", "experiments", "cross_encoder.py")
+    local = os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])), "..", "experiments", "cross_encoder.py")  # src/kaggle -> src/experiments
     if os.path.exists(local):  # inside the package: the module next to this script
         import shutil
         shutil.copy(local, f"{TMP}/cross_encoder.py")

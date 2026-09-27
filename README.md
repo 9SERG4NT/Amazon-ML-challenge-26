@@ -5,7 +5,28 @@ and 3 — no shared IDs, noisy names and addresses, three countries (France only
 Scored by macro F0.5 per Source 1 entity. Challenge statement:
 [`resources/student_resource/README.md`](resources/student_resource/README.md).
 
-## Approach
+## Final submission: COMB-v2 (Team_Sumukh)
+
+The team built two complete pipelines and combines them:
+
+- **Pipeline A (this repository, preset M-v29):** the sparse-search + two-stage LightGBM pipeline below, with three
+  fine-tuned cross-encoders' pair scores among its features. Test-like evaluation F0.5 0.9887.
+- **Pipeline B (the teammates'):** a fine-tuned multilingual-e5-small bi-encoder with FAISS search, then XGBoost led
+  by a cross-encoder score. Public leaderboard 0.980.
+- **The combination (`experiments/combine_team.py`):**
+  - It starts from the union of both candidate sets and drops the pairs that both pipelines reject, leaving
+    **3.68 candidates per S1**.
+  - A LightGBM reads each pipeline's probability and competition context and decides each entity's match list. It is
+    trained on the 87,911 training entities that both pipelines held out.
+  - France gets a label-free calibration.
+  - Held-out F0.5: **0.9914**, against 0.9885 (A) and 0.9877 (B).
+  - Public leaderboard: **0.98462** (COMB-v1, the same combination before the pre-filter, with the same held-out
+    score).
+
+The package is `Team_Sumukh_submission.zip`. It holds the output files, the code (pipeline B included), and the filled
+`Documentation_template.md`. Reproduction steps: [`code/business_entity_resolution/README.md`](code/business_entity_resolution/README.md).
+
+## Approach (pipeline A)
 
 ```
 normalise ──> block ──> features ──> LightGBM stage 1 ──> stage 2 ──> exclusive assignment + decision rule
@@ -27,7 +48,7 @@ normalise ──> block ──> features ──> LightGBM stage 1 ──> stage 
   test has twice train's distractors per S1. Every run also reports a *doubled-distractor* eval
   that counts each link to a distractor twice, the test's density of same-name lookalikes.
 
-## Results so far
+## Results
 
 | Version | Eval data | F0.5 | Precision | Recall | Public leaderboard |
 |---|---|---:|---:|---:|---:|
@@ -38,9 +59,15 @@ normalise ──> block ──> features ──> LightGBM stage 1 ──> stage 
 | M-v5: test-like universe, number-gap features, 75% of entities fitted | test-like | 0.9852 | 0.9957 | 0.9644 | **0.971** |
 | M-v6: M-v5 + France-robust features (FEAT-v4) | test-like | **0.9856** | 0.9960 | 0.9647 | pending |
 | M-v7: every distractor copied | copies | 0.9856 | 0.9978 | 0.9599 | rejected |
-| **M-v11: M-v6 behind a learned candidate filter (6.5 candidates per S1 instead of 48)** | test-like | 0.9854 | 0.9962 | 0.9639 | **0.970** (submitted) |
+| M-v11: M-v6 behind a learned candidate filter (6.5 candidates per S1 instead of 48) | test-like | 0.9854 | 0.9962 | 0.9639 | 0.970 |
 | M-v12 to M-v18: distractor weights ×2, a metric-aligned loss, a neural network (Adam), CatBoost, blends (all on M-v11's candidates) | test-like | 0.9825–0.9854 | | | none beats M-v11 |
 | M-v19 to M-v21: unseen-country diagnosis (fit one country, score the other: −0.024 to −0.037), self-training, French house-number fix | test-like | 0.9853–0.9854 | | | no measurable gain; M-v11 stays |
+| M-v25 / M-v26: + one cross-encoder's pair score (4-layer BERT / multilingual-e5-small) | test-like | 0.9875 / 0.9884 | 0.9979 / 0.9981 | 0.9664 / 0.9680 | |
+| M-v28: + both cross-encoders and their competition context | test-like | 0.9885 | 0.9983 | 0.9682 | 0.978 |
+| M-v29 (pipeline A): + a third cross-encoder (multilingual-e5-base) | test-like | 0.9887 | 0.9984 | 0.9685 | |
+| Pipeline B (teammates, run R5) | its own 10% held out | 0.9875 | | | 0.980 |
+| **COMB-v1: learned combination of M-v29 and pipeline B** | held out by both | **0.9914** | 0.9982 | 0.9772 | **0.98462** |
+| **COMB-v2: COMB-v1 + pre-filter (3.68 candidates per S1 instead of 7.48); final** | held out by both | **0.9914** | 0.9981 | 0.9773 | final package |
 
 Rows with different eval data are not comparable. What the leaderboard taught us:
 
@@ -57,6 +84,10 @@ Rows with different eval data are not comparable. What the leaderboard taught us
 4. **The unseen country.** A model fitted on one country loses 0.024–0.037 on the other, so France (15% of the
    test, no training links) is the likeliest part of the remaining gap (eval 0.985 against leaderboard 0.970).
    Self-training, a search tuned across countries and a French house-number fix did not move the eval.
+5. **New evidence beat more tuning.** Once features, learners and losses had saturated, cross-encoders that read
+   both records together added 0.008 on the leaderboard (0.970 → 0.978). Combining two pipelines that search
+   differently added another 0.0045 over the better one (0.980 → 0.98462). Each pipeline finds true links the
+   other misses.
 
 Every experiment, with methods and numbers: [`method_result.md`](method_result.md). The
 submitted files and every run's outputs are listed in [`output/README.md`](output/README.md).
@@ -67,9 +98,10 @@ submitted files and every run's outputs are listed in [`output/README.md`](outpu
 |---|---|
 | [`code/business_entity_resolution/`](code/business_entity_resolution/) | the pipeline — see its [README](code/business_entity_resolution/README.md) for how to run it |
 | [`method_result.md`](method_result.md) | experiment log: every version, how it was measured, what it scored |
-| [`Documentation_template.md`](Documentation_template.md) | methodology write-up for the submission (draft; final numbers pending) |
+| [`Documentation_template.md`](Documentation_template.md) | methodology write-up for the submission (final: COMB-v2) |
+| `Team_Sumukh_submission.zip` | the final submission package (output files, code with pipeline B, methodology; validator PASS) |
 | [`infra/aws/`](infra/aws/) | AWS setup: SageMaker training-job launcher, EC2 runner (`ec2/launch_runner.sh` creates it in a fresh account), quotas — see its [README](infra/aws/README.md) |
-| [`infra/kaggle/`](infra/kaggle/) | Kaggle notebooks that run a preset on a private copy of the dataset (TPU VM for its RAM; CPU for 1% smoke tests) |
+| [`infra/kaggle/`](infra/kaggle/) | Kaggle kernels: presets on a private copy of the dataset (TPU VM for its RAM; CPU for 1% smoke tests), and the GPU cross-encoders (`ce/`, `ce3/`). The team pipeline's kernel (`team/`) is not in git |
 | [`make_submission.py`](make_submission.py) | validates the outputs and builds `<team>_submission.zip` |
 | [`CLAUDE.md`](CLAUDE.md) | context for Claude Code sessions working in this repository |
 | `resources/` | challenge statement, validator; the dataset itself is not in git (too large) |

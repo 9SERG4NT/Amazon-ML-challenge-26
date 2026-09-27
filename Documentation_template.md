@@ -94,7 +94,7 @@ Every component is a named version recorded in `src/ber/versions.py`: normalisat
 blocking (BLK), features (FEAT) and matcher (MATCH). Every stage caches its output under the
 versions it depends on, so any logged result can be re-run by name. The submitted run is
 **COMB-v2**: pipeline A's preset **M-v29 = NORM-v2 + BLK-v5-tlu40 + FEAT-v10 + MATCH-v6** (M-v11
-plus three cross-encoder scores and their competition context), pipeline B (`team_pipeline/`), and
+plus three cross-encoder scores and their competition context), pipeline B (`src/team_pipeline/`), and
 the combination (`src/experiments/combine_team.py`, section 4.3).
 
 ---
@@ -446,11 +446,11 @@ full-data error analysis (`full_errors.py`) and the train/test shift checks (`sh
 The cross-encoder features come from `src/experiments/cross_encoder.py`:
 - `export` writes the candidate pairs with their texts and cross-fitting halves;
 - `run` fine-tunes and scores ce1 on CPU or GPU;
-- `kaggle/run_ce.py` runs ce2 on two GPUs from the same module.
+- `src/kaggle/run_ce.py` runs ce2 and ce3 on two GPUs from the same module.
 
 `run_pipeline.py` then joins the scores (FEAT-v10) and trains the matcher. The combination is
 `src/experiments/combine_team.py`, which reads pipeline A's probabilities from
-`src/experiments/export_scores.py`. `team_pipeline/` holds pipeline B: its source, the Kaggle notebook that ran it,
+`src/experiments/export_scores.py`. `src/team_pipeline/` holds pipeline B: its source, the Kaggle notebook that ran it,
 its README and pinned requirements. `README.md` gives the exact commands for all three, and `requirements.txt` the
 pinned environment (Python 3.12; PyTorch and transformers only for the cross-encoders).
 

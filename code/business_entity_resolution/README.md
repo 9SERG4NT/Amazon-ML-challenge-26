@@ -8,7 +8,7 @@ public leaderboard):
 - **Pipeline A (`src/`, preset M-v29):** normalise → sparse IDF search + learned candidate filter →
   pairwise features, including three fine-tuned cross-encoders' pair scores → two-stage LightGBM
   (test-like evaluation F0.5 0.9887; M-v28, its predecessor, scored 0.978 on the leaderboard).
-- **Pipeline B (`team_pipeline/`):** a fine-tuned multilingual-e5-small bi-encoder with FAISS
+- **Pipeline B (`src/team_pipeline/`):** a fine-tuned multilingual-e5-small bi-encoder with FAISS
   search and a graph filter → XGBoost with a cross-encoder score (the teammates' pipeline; 0.980 on
   the leaderboard).
 - **Combination (`src/experiments/combine_team.py`):** a LightGBM over the union of both candidate
@@ -30,7 +30,7 @@ Every dependency is open source. Pipeline A's models are LightGBM (MIT) and thre
 fine-tuned from `google/bert_uncased_L-4_H-256_A-4` (Apache-2.0, 11M parameters),
 `intfloat/multilingual-e5-small` (MIT, 118M) and `intfloat/multilingual-e5-base` (MIT, 278M).
 Pipeline B's are a bi-encoder and a cross-encoder fine-tuned from `intfloat/multilingual-e5-small`
-and XGBoost (Apache-2.0); its pinned environment is `team_pipeline/requirements.txt`. The base models
+and XGBoost (Apache-2.0); its pinned environment is `src/team_pipeline/requirements.txt`. The base models
 are downloaded from the Hugging Face hub on first use. Every model is far below 8B parameters. No
 external data, APIs or lookups are used: everything is learned from the training files.
 
@@ -48,16 +48,16 @@ From `src/`, with `D=<dataset dir with train/ and test/>`, `W=<work dir>` and `R
 ```bash
 # A. pipeline A, preset M-v29: steps 1-4 below, then ce3 and the matcher on FEAT-v10
 CE_CONFIG='{"model": "intfloat/multilingual-e5-base", "lr": 3e-5, "score_batch": 512, "name": "ce3"}' \
-  python ../kaggle/run_ce.py                                  # ~3 h on 2x T4; copy ce3_*.parquet to $W/extra/NORM-v2__BLK-v5-tlu40/
+  python kaggle/run_ce.py                                  # ~3 h on 2x T4; copy ce3_*.parquet to $W/extra/NORM-v2__BLK-v5-tlu40/
 python run_pipeline.py --data $D --work $W --out $W/out_m29 --preset M-v29 --stages features,train,predict
 python -m experiments.export_scores $W NORM-v2__BLK-v5-tlu40__FEAT-v10__MATCH-v6 $W/m29   # -> m29_{train,test}.parquet
 
-# B. pipeline B (from team_pipeline/, GPU, ~4.7 h on Kaggle's 2x T4); it saves its validation and test pair scores
-cd ../team_pipeline
+# B. pipeline B (from src/team_pipeline/, GPU, ~4.7 h on Kaggle's 2x T4); it saves its validation and test pair scores
+cd team_pipeline
 python -m src.stage1_blocking --data-dir $D --out-dir $R/stage1
 python -m src.stage2_match --stage1-dir $R/stage1 --data-dir $D --out-dir $R/stage2 --team-name Team_Sumukh \
   --margins --cross-encoder --fit-max-pairs 4000000 --ce-pairs 2000000 --ce-minutes 45
-cd ../src
+cd ..
 
 # C. the combination (8 cores, ~2.5 min, 9 GB): writes matching_results.tsv, candidate_pairs.tsv, combine_validation.json
 python -m experiments.combine_team --team $R/stage2 --ours-train $W/m29_train.parquet --ours-test $W/m29_test.parquet \
@@ -66,7 +66,7 @@ python -m experiments.combine_team --team $R/stage2 --ours-train $W/m29_train.pa
 ```
 
 The combination is deterministic: two runs give byte-identical files. The team notebook that ran
-pipeline B on Kaggle is `team_pipeline/team_pipeline.ipynb`; it writes the same source files and
+pipeline B on Kaggle is `src/team_pipeline/team_pipeline.ipynb`; it writes the same source files and
 runs the two commands above.
 
 ### Pipeline A alone (M-v28, four steps)
@@ -80,10 +80,10 @@ python run_pipeline.py --data $D --work $W --out ../../../output --preset M-v11 
 python -m experiments.cross_encoder export $W NORM-v2__BLK-v5-tlu40
 python -m experiments.cross_encoder run $W NORM-v2__BLK-v5-tlu40 --name ce1 --threads 8 --half
 
-# 3. ce2 (multilingual-e5-small, raw texts) on two GPUs (about 1.5 h on 2x T4): ../kaggle/run_ce.py reads the
+# 3. ce2 (multilingual-e5-small, raw texts) on two GPUs (about 1.5 h on 2x T4): kaggle/run_ce.py reads the
 #    challenge TSVs and $W/ce/NORM-v2__BLK-v5-tlu40/ids_{train,test}.parquet (set CE_INPUT / CE_TMP / CE_OUT
 #    outside Kaggle) and writes ce2_{train,test}.parquet; copy them to $W/extra/NORM-v2__BLK-v5-tlu40/
-python ../kaggle/run_ce.py
+python kaggle/run_ce.py
 
 # 4. join both scores to the base features (FEAT-v9), train, predict, validate
 python run_pipeline.py --data $D --work $W --out ../../../output --preset M-v28 --stages features,train,predict \
@@ -187,13 +187,14 @@ src/
   ber/                 normalize, aliases, blocking, features, model, metrics, data, versions
   experiments/         experiments behind the versions (see method_result.md); cross_encoder.py builds the
                        cross-encoder features (export, CPU/GPU training and cross-fitted scoring)
-  experiments/combine_team.py   the final combination of pipelines A and B (union of candidates, cross-fitted LightGBM,
-                       French calibration); experiments/export_scores.py exports a run's probabilities for it
-kaggle/
-  run_ce.py            ce2 / ce3 on two GPUs (one cross-fitting half per GPU), using experiments/cross_encoder.py
-team_pipeline/         pipeline B (the teammates' bi-encoder + XGBoost pipeline, run on Kaggle): src/, its notebook,
-                       README and pinned requirements. It ships in the submission zip (Team_Sumukh_submission.zip at the
-                       repository root); it is not a folder of the repository itself
+  experiments/combine_team.py   the final combination of pipelines A and B (pre-filtered union of candidates,
+                       cross-fitted LightGBM, French calibration); experiments/export_scores.py exports a run's
+                       probabilities for it
+  kaggle/run_ce.py     ce2 / ce3 on two GPUs (one cross-fitting half per GPU), using experiments/cross_encoder.py
+  team_pipeline/       pipeline B (the teammates' bi-encoder + XGBoost pipeline, run on Kaggle): its own src/, the
+                       notebook that ran it, README, pinned requirements and the run's report. It ships in the
+                       submission zip (Team_Sumukh_submission.zip at the repository root); it is not a folder of the
+                       repository itself
 ```
 
 `infra/aws/` (repository root) holds the AWS setup: SageMaker training-job launcher, EC2

@@ -1,5 +1,8 @@
 # Local runner
 
+This runner covers pipeline A's filtered-candidate presets on CPU only. The final submission (COMB-v2) also needs the
+cross-encoders (GPU), pipeline B and the combination: see `code/business_entity_resolution/README.md`.
+
 `run_local.py` runs the newest presets end to end on your own machine (Windows or Linux) in one command. It checks
 the machine, finds the 7 challenge TSVs under `--data` (any folder layout), installs the pinned requirements, downloads
 the pipeline from GitHub, and runs **M-v11** and then **M-v12**. Both use the learned candidate filter (BLK-v5-tlu40);

@@ -1,7 +1,23 @@
 # AWS setup
 
 What exists in AWS for this project, how to run the pipeline there, and what it costs.
-Account `125650147728`, region `us-east-1`.
+
+**Current account (since 2026-09-26): `278311879294`, region `us-east-1`.**
+
+| Resource | ID / location | Notes |
+|---|---|---|
+| S3 bucket | `s3://amazon-ml-challenge-26-278311879294` | private, AES256, TLS only: `dataset/`, `predictions/<version>/`, `experiments/logs/`, `experiments/team/` |
+| EC2 runner | `i-04fb5a4206b8bb43e`, r7a.2xlarge (8 cores, 64 GB + 48 GB swap) | driven by SSM Run Command; stops itself after 60 idle minutes |
+| EC2 role / security group | `mlc26-ec2-runner` / `sg-008a21c8fd1ee3aca` | bucket read/write + SSM only; no inbound rules |
+
+On the runner, `/opt/mlc26/repo` is a clone of this repository, `/opt/mlc26/runs/full` holds pipeline A's
+version-keyed work dir, and `/opt/mlc26/stack/` holds the combination's inputs and outputs. It produced M-v25 to
+M-v29, COMB-v1 and COMB-v2.
+
+The account below (`125650147728`) was suspended on 2026-09-26. The rest of this file describes it, and its
+procedures (bootstrap, chains, costs) still apply to the new runner.
+
+Old account `125650147728`, region `us-east-1`.
 
 ## Resources
 
