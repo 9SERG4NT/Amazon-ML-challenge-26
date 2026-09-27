@@ -35,7 +35,7 @@ import polars as pl
 T0 = time.time()
 PARAMS = {"objective": "binary", "learning_rate": 0.05, "num_leaves": 63, "min_data_in_leaf": 200,
           "feature_fraction": 0.9, "bagging_fraction": 0.8, "bagging_freq": 1, "lambda_l2": 1.0, "verbose": -1,
-          "seed": 42}
+          "seed": 42, "deterministic": True, "force_row_wise": True}  # same file on every run
 RULES = ([("threshold", t) for t in np.round(np.arange(0.30, 0.91, 0.05), 2)]
          + [("expected_f", f) for f in (0.05, 0.1, 0.2, 0.3, 0.4, 0.5)]
          + [("gated", g) for g in (0.3, 0.4, 0.5, 0.55, 0.6, 0.65, 0.7)])
