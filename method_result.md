@@ -85,6 +85,7 @@ All rows are measured on DEV-10. **Pair recall** is the share of true links that
 | **BLK-v4b** | 2026-09-25 | v4 + region keys limited to tokens that sit mostly at the end of an address: 16 Indian states, 37 US states; one learned merge (Telangana ↔ Andhra Pradesh) | **99.52%** | **98.35%** | 65.9 | **43 s** | **Current** |
 | BLK-v4b @10 | 2026-09-25 | same, top-10 per source | 99.10% | — | 25.9 | — | Cheaper option for the matcher |
 | **BLK-v4b@20, FULL train** | 2026-09-25 | BLK-v4b top-20 on the **full** data (2.2M S1 x 10.3M targets); eval slice shown | **98.32%** | 94.53% | 47.5 | 703 s (EC2, 8 cores) | Denser competition than DEV-10: -1.1 points. Targets without address: 88.7%. Recall still rising at k=20 |
+| BLK-v4b@40n20, FULL train | 2026-09-25 | top-40 main pass + top-20 name-only pass on the full data; eval slice shown | **98.93%** | 96.43% | 114.4 | 834 s | Main-pass depth 5 / 10 / 20 / 30 / 40 (name-only 20): 95.99 / 97.40 / 98.28 / 98.70 / 98.93% at 44 / 54 / 74 / 94 / 114 candidates per S1. Name-only depth 5 / 10 / 15 / 20 (main 40): 98.82 / 98.88 / 98.91 / 98.93% at 90 / 100 / 108 / 114. Name-only beyond 5 is not worth it; top-30 or top-40 with name-only 5 is the frontier (≈ +0.3 / +0.5 points at +47% / +89% candidates). Test: 200.5M candidates. Peak 53.2 GB |
 
 ### 4.2 End-to-end versions (validation F_0.5)
 
@@ -95,6 +96,20 @@ Unless noted, the scores are on the DEV-10 **evaluation slice**: 20% of the DEV-
 | M-v1 | 2026-09-25 | NORM-v2 + BLK-v4b (top-20 per source) + 44 features + LightGBM (log loss) + exclusive assignment + threshold 0.725 | 99.45% | 46.9 | 0.9882 | 0.9954 | 0.9745 | 0.9805 / 0.9887 | — | Upper bound with a perfect matcher on these candidates: 0.9984. Laptop, DEV-10 |
 | M-v2 | 2026-09-25 | M-v1 + 8 soft word-alignment features (52 in total); exclusive, threshold 0.725 | 99.45% | 46.9 | 0.9894 | 0.9959 | 0.9772 | 0.9826 / 0.9899 | — | Scored on EC2 from the saved M-v2 predictions |
 | M-v3 | 2026-09-25 | 2 stages: stage 1 cross-fitted (3 folds) + stage 2 on stage-1 probability context; exclusive, expected-F | 99.45% | 46.9 | **0.9906** | 0.9963 | 0.9794 | 0.9814 / 0.9911 | — | Threshold 0.725 instead: 0.9904 (singletons 0.9935). EC2, DEV-10 |
+| **FULL-v1** (M-v3) | 2026-09-25 | M-v3 on the **full** data: fit 30% of train S1, scored on the full-density eval slice (441,521 S1); exclusive, gated expected-F (gate 0.5) | 98.32% | 47.5 | **0.9813** | 0.9952 | 0.9544 | 0.9774 / 0.9815 | **0.96** (public) | Perfect matcher on these candidates: 0.9947. India 0.9778, US 0.9837. Top of the public leaderboard: 0.99. The 0.02 gap to eval is a train/test shift (see "Leaderboard gap" below) |
+| **M-v5** | 2026-09-26 | Test-like universe (BLK-v4b@20-tlu40) + FEAT-v3 (number gap) + MATCH-v6 (75% fitted, lr 0.1); gated expected-F (gate 0.55). **Test-like eval slice**, not comparable with the full-universe rows | 98.69% | 47.8 | **0.9852** | 0.9957 | 0.9644 | 0.9808 / 0.9854 | **0.971** (public, rank ~400) | Perfect matcher on these candidates: 0.9959. India 0.9818, US 0.9875. `num_x_edit` carries 10.9% of the stage-1 gain |
+| **M-v6** | 2026-09-26 | M-v5 with FEAT-v4 (distinctive-part features); gated expected-F (gate 0.5). Test-like eval slice | 98.69% | 47.8 | **0.9856** | 0.9960 | 0.9647 | 0.9812 / 0.9859 | pending | India 0.9822, US 0.9878. Changes 6.9% of French S1's link sets (US/India 3.4–3.6%). Kaggle TPU run |
+| **M-v11** | 2026-09-26 | M-v6 behind the learned candidate filter (BLK-v5-tlu40): 6.5 candidates per test S1 instead of 48.1; expected-F (0.4). Test-like eval slice | 98.21% | 6.0 | **0.9854** | 0.9962 | 0.9639 | 0.9816 / 0.9856 | **0.970** (public) | Doubled-distractor 0.9845. India 0.9817, US 0.9879. Test profile as M-v6's. EC2 |
+| M-v7 | 2026-09-26 | Full universe with every distractor copied (BLK-v4b@20-dup2) + FEAT-v4 + MATCH-v6 | 98.17% | 47.5 | 0.9856 | 0.9978 | 0.9599 | 0.9924 / 0.9852 | not submitted | **Rejected:** the model learned to spot the copies and over-links the test (98.5% of S1, 4.20 links each) |
+| **M-v25** | 2026-09-27 | M-v11 + ce1: a 4-layer BERT cross-encoder's match probability for the pair (FEAT-v6), cross-fitted on two halves of the fit entities; gated expected-F (gate 0.6). Test-like eval slice | 98.21% | 6.0 | **0.9875** | 0.9979 | 0.9664 | 0.9928 / 0.9872 | pending | Doubled-distractor 0.9870. India 0.9851, US 0.9891. Stage 1 alone 0.9861 (M-v11's 0.9833). Test: France 94.5% linked, 3.28 links per S1 (M-v11 3.13). Same candidates as M-v11 |
+| **M-v26** | 2026-09-27 | M-v11 + ce2: a multilingual-e5-small cross-encoder (raw texts, trained on Kaggle's 2× T4) as a feature (FEAT-v7); gated expected-F (gate 0.5). Test-like eval slice | 98.21% | 6.0 | **0.9884** | 0.9981 | 0.9680 | 0.9927 / 0.9881 | pending | Doubled-distractor 0.9880. India 0.9861, US 0.9899. Stage 1 alone 0.9872. Test: France 94.1% linked, 3.21 links per S1. Same candidates as M-v11 |
+| M-v27 | 2026-09-27 | M-v26 + ce2's competition context (rank, margins, the S1's top ce2; FEAT-v8); expected-F (0.4). Test-like eval slice | 98.21% | 6.0 | 0.9884 | 0.9981 | 0.9680 | 0.9916 / 0.9882 | not submitted | Ties M-v26: the context lifts stage 1 (0.9872 → 0.9881), but stage 2 already sees the rival context. Test: France 3.20 links per S1 |
+| **M-v29** | 2026-09-27 | M-v28 + ce3, a multilingual-e5-base cross-encoder (278M), all three with their context (FEAT-v10, 83 features); gated expected-F (gate 0.55). Test-like eval slice | 98.21% | 6.0 | **0.9887** | 0.9984 | 0.9685 | 0.9942 / 0.9884 | pending | **Best eval and doubled-distractor (0.9884).** India 0.9865, US 0.9902. Test: France 94.1% linked, 3.20 links per S1. md5 `ff8c6886…` |
+| **M-v28** | 2026-09-27 | M-v11 + both cross-encoders (ce1 + ce2) with their competition context (FEAT-v9, 77 features); gated expected-F (gate 0.5). Test-like eval slice | 98.21% | 6.0 | **0.9885** | 0.9983 | 0.9682 | 0.9934 / 0.9883 | **0.978** (public) | **Best eval and doubled-distractor (0.9882).** India 0.9864, US 0.9900. Test: France 94.2% linked, 3.22 links per S1. Same candidates as M-v11 |
+| **COMB-v1** | 2026-09-27 | Learned combination of M-v29 and the team pipeline (re-run R6) on the union of both candidate sets: a LightGBM on each side's probability and competition context (16 features), cross-fitted on the 87,911 S1 that both pipelines held out; gated expected-F (gate 0.65); French empty-share calibration (logit shift 1.15). **Shared validation**, not comparable with the rows above | 99.31% | 6.50 (test 7.48) | **0.9914** | 0.9982 | 0.9772 | 0.9957 / — | **0.98462** (public) | **Best leaderboard score, the final submission.** Same entities: M-v29 0.9885, team R6 0.9877, plain mean of the two 0.9905. Test: 94.2% of S1 linked in every country, France 3.31 links per S1. See section 5 |
+| **COMB-v2** | 2026-09-27 | COMB-v1 + a pre-filter: union pairs that both pipelines score below 0.1 are dropped before the combination (`--prefilter 0.1`, cut-off chosen on the shared validation). **Shared validation** | 98.92% | 3.58 (test 3.68) | **0.9914** | 0.9981 | 0.9773 | 0.9940 / — | **0.98476** (public) | **Submitted files; best leaderboard score.** Half COMB-v1's candidate set (7.48 per test S1) at the same held-out F0.5 (0.99139 vs 0.99140) |
+| TEAM-R6 (team pipeline, our Kaggle re-run) | 2026-09-27 | The team's pipeline run end to end by us (`serg4nt/mlc26-team`, 2× T4, 4 h 44 min) without the hard-negative round; scores saved for the combination. Their own validation | 98.09% | 4.89 (test 6.18) | 0.9875 | — | — | 0.9935 / 0.9871 | not submitted | Validator PASS. Differs from R5 on 20% of French S1 (India 5.5%, US 4.6%). France 3.25 links per S1 after its calibration |
+| TEAM-B-R5 (teammates) | 2026-09-26 | The team's second pipeline: fine-tuned e5-small bi-encoder + FAISS blocking, graph filter, XGBoost with a cross-encoder score, expected F0.5, French logit shift. **Their own validation** (10% of train S1 held out), not comparable with the rows above | 98.16% | 4.78 | 0.9875 | — | — | 0.9850 / 0.9876 | pending | 5.95 candidates per test S1. Links more than M-v11 (France 3.17 against 3.13 per S1). See section 5 |
 
 ---
 
@@ -136,6 +151,769 @@ Copy the template below for each run, newest entry first. Record every run, incl
 - Conclusion: keep / drop / iterate
 - Next step:
 -->
+
+### Combining our pipeline with the team's (`experiments/combine_team.py`)
+
+- **Date:** 2026-09-27, 11:30 IST. Leaderboard: the team's run 0.980, M-v28 0.978. The two pipelines differ in
+  candidate search (sparse IDF against a fine-tuned dense bi-encoder), features and learner (LightGBM against XGBoost),
+  so a learned combination should beat both. The team's notebook was edited to save its validation and test pair
+  scores with id maps, and to finish its cross-encoder training (`--ce-pairs 2500000 --ce-minutes 60`). The user runs
+  it in the teammate's Kaggle account, since the notebook and its stage-1 input are not visible to `serg4nt`.
+- **Method:** the union of both candidate sets; per pair, each side's probability (missing when that side's search did
+  not find the pair), flags, and each side's competition context (rank and margin within the S1, margin over the best
+  other S1 claiming the record). A LightGBM is cross-fitted (5 folds by S1) on the S1 entities that both pipelines
+  held out: the team's validation 10% that are also in our test-like universe, where our scores are out-of-fold. The
+  rule is chosen on the out-of-fold scores and compared with each side alone on the same entities. Output only if
+  the combination wins. The candidate file is the union.
+- **Running the team pipeline ourselves.** Its notebooks and stage-1 output are not visible to `serg4nt`. The
+  downloaded notebook, however, holds the whole pipeline source, so `serg4nt/mlc26-team` (Kaggle, 2× T4, from 11:33
+  IST) runs it end to end on our copy of the data. Stage 1 runs with the hard-negative round, the R5 setting; stage 2
+  runs with the three edits above. The source stays out of the public repository.
+- **Dry run at full scale** (a stand-in "team" built from M-v11's scores in the team's file format, against M-v28):
+  114,638 shared validation S1 and 686,676 union pairs. M-v11 0.9852, M-v28 0.9885, their mean 0.9881, the combiner
+  0.9885 (as expected: M-v11 adds nothing to M-v28). Test: 11.19M union pairs. **1 min 16 s, 9.1 GB peak.**
+- **The real run (COMB-v1, 17:20–17:35 IST).** The team pipeline's Kaggle re-run (R6) finished at 17:12 IST (4 h 44
+  min; stage 2 117 min). Its own validation is 0.98746 (R5: 0.9875), with 4.89 candidates per validation S1 and 6.18 per
+  test S1. Its score files went to S3 (`experiments/team/R6/`), and the runner combined them with M-v29's
+  (`/opt/mlc26/stack/m29_*.parquet`). Shared validation: **87,911 S1** (the team's validation S1 inside our test-like
+  universe), 571,098 union pairs (team 430,659, ours 525,506), holding 302,314 of the 304,416 true links (99.31%).
+
+  | Scorer (same 87,911 S1, rule chosen on them) | F0.5 | P | R | Singletons |
+  |---|---:|---:|---:|---:|
+  | Team R6 alone (gated 0.6) | 0.98766 | 0.9973 | 0.9670 | 0.9880 |
+  | M-v29 alone (threshold 0.75) | 0.98849 | 0.9984 | 0.9680 | 0.9953 |
+  | Plain mean of the two probabilities (threshold 0.65) | 0.99052 | 0.9973 | 0.9769 | 0.9915 |
+  | **Learned combination (gated 0.65)** | **0.99140** | 0.9982 | 0.9772 | 0.9957 |
+
+  The gain is recall at the same precision: each pipeline finds true links the other misses (different searches and
+  cross-encoders), and when both agree the combination keeps them. The plain mean, which learns nothing, already gets
+  +0.0020, so the gain is not a stacking artefact.
+- **France.** The team saves *uncalibrated* test scores. Without a shift the combination links 94.48% of French S1
+  (India and US 94.18%) with 3.39 links per S1, more than either pipeline alone (M-v29 3.20, team 3.25) and above the
+  label-free estimate of 3.31 (the S3−S2 excess). `--france-shift auto` (the team's empty-share calibration, added to
+  `combine_team.py`) shifts French logits by 1.15 until France's no-match share equals the others' (5.82%): France
+  then has 94.18% linked and **3.31 links per S1**, matching the estimate. This is the version kept.
+- **Reproducibility.** Two runs first differed in the fourth decimal place because polars `unique()` and joins do not
+  keep row order, so the 5-fold assignment changed. The shared S1 list and the union frame are now sorted, ties in
+  expected F are broken by record id, and LightGBM runs with `deterministic`. Two runs of the final command give
+  identical files. Runtime 2 min 18 s (the calibration search takes about 100 s), 9.0 GB peak.
+- **Test:** 12,964,229 union pairs (7.48 per S1: team 10.71M, ours 11.19M), 5,840,814 links. Validator PASS.
+- **Public leaderboard: 0.98462** (uploaded 17:45 IST), against 0.980 for the team's R5 and 0.978 for M-v28: the
+  held-out gain (+0.0029 over M-v29, +0.0037 over the team) carried over to the test (+0.0045 over the team's best).
+  COMB-v1 is the final submission.
+- **More inputs for the combiner (18:00 IST, `--extra`), no gain.** Same shared validation, same command plus:
+
+  | Variant | Features | F0.5 | Rule | France links per S1 |
+  |---|---:|---:|---|---:|
+  | COMB-v1 (re-run with the new code: byte-identical file, md5 `c0b7f451…`) | 16 | 0.99140 | gated 0.65 | 3.31 |
+  | v2a: + M-v28's probability and M-v29's stage-1 probability, with their context | 28 | 0.99138 | threshold 0.7 | 3.34 |
+  | v2b: v2a + the raw ce1 / ce2 / ce3 scores, with their context | 46 | 0.99145 | gated 0.7 | 3.31 |
+
+  +0.00005 is below the noise of a rule choice, so COMB-v1 stays. What pipeline A knows is already in M-v29's
+  probability; the combination's gain comes from pipeline B's different search and cross-encoder, and more views of A
+  add nothing. Not uploaded.
+- **COMB-v2: a pre-filter halves the candidate set (18:10 IST).** Many union pairs are ones both pipelines already
+  reject, yet each still counts as a candidate, and the organisers rank a smaller candidate set higher.
+  `--prefilter x` drops union pairs where both pipelines score below x, before the combination is trained and applied.
+  Selection rule, fixed before the sweep: the largest cut-off whose shared-validation F0.5 stays within 0.0001 of
+  COMB-v1's (no leaderboard involved).
+
+  | Cut-off | Held-out pairs per S1 | True links kept (of 304,416) | Held-out F0.5 | Test candidates per S1 | Test links |
+  |---|---:|---:|---:|---:|---:|
+  | none (COMB-v1) | 6.50 | 302,314 | 0.99140 | 7.48 | 5,840,814 |
+  | 0.01 | 3.99 | 302,250 | 0.99138 | 4.21 | 5,840,058 |
+  | 0.03 | 3.81 | 302,006 | 0.99140 | 3.95 | 5,838,225 |
+  | 0.05 | 3.69 | 301,658 | 0.99142 | 3.81 | 5,841,028 |
+  | **0.1** | 3.58 | 301,115 | 0.99139 | **3.68** | 5,836,877 |
+  | 0.2 | 3.51 | 300,529 | 0.99132 | 3.59 | 5,838,859 |
+  | 0.3 | 3.47 | 299,976 | 0.99130 | — | — |
+
+  F0.5 is flat up to 0.1 and falls from 0.2 on. Read literally, the rule would allow 0.3, which sits exactly on the
+  line, but the curve is already falling there for 0.1 fewer candidates per S1, so **0.1** is kept: the last point
+  before the decline. The links the filter drops are ones the combination would not have chosen anyway. France
+  keeps 94.2% of S1 linked, with 3.29 links per S1. **COMB-v2 = COMB-v1 + `--prefilter 0.1`**:
+  6,376,308 test candidates (**3.68 per S1**, against 7.48; pipeline A alone 6.5, B 6.18) at the same held-out F0.5.
+  It becomes the submitted version. Its leaderboard score is expected to equal COMB-v1's within noise (0.98462); the
+  check upload was only a bug guard (rule fixed beforehand: keep COMB-v2 at 0.9842 or above).
+- **COMB-v2 on the public leaderboard: 0.98476** (18:50 IST, the last upload), within noise of COMB-v1's 0.98462, as
+  the held-out scores predicted. No bug; COMB-v2 is final, and the leaderboard and the zip now hold the same file.
+  Files in `output/runs/COMB-v1__M-v29__TEAM-R6__fr-auto/` and `s3://…/predictions/COMB-v1__M-v29__TEAM-R6__fr-auto/`.
+
+### A cross-encoder feature, the team pipeline's main idea (FEAT-v6 / FEAT-v7 → M-v25 / M-v26)
+
+- **Date:** 2026-09-26, 22:30 IST (deadline: 2026-09-27 midnight). The team's cross-encoder carries 75% of its XGBoost
+  gain (their validation 0.9812 → 0.9856 when added), and their run scores 0.98 against our 0.970. A text model that
+  reads both records together should also transfer better to France than hand-made string features: in the
+  leave-one-country-out runs an unseen country lost 0.024–0.037.
+- **Design (`experiments/cross_encoder.py`).** The candidate pairs are exactly M-v11's (BLK-v5-tlu40): 6,875,607 train
+  pairs (56.7% true links) and 11,191,806 test pairs. The fit and rest entities are split into two halves by a hash
+  of the S1 row id (1,980,712 and 1,980,101 pairs). Model A trains on half 0, model B on half 1; each fit pair is
+  scored by the model that never saw its S1. The 2,914,794 early-stop and eval pairs and all test pairs are scored
+  by A (or the mean of both). So the LightGBM never reads a score from a model trained on the same entity, as the
+  team trained its cross-encoder on entities its XGBoost did not use. FEAT versions can now reuse another
+  version's feature parts and join such external pair scores (`base`, `extra`): FEAT-v6 = FEAT-v4 + ce1,
+  FEAT-v7 = FEAT-v4 + ce2.
+  - **ce1:** `google/bert_uncased_L-4_H-256_A-4` (Apache-2.0, 11M parameters) on our normalised
+    '<name> | <address>' texts, on the runner's CPU (600k training pairs per half).
+  - **ce2:** `intfloat/multilingual-e5-small` (MIT, 118M, the model family the team used) on the raw texts
+    (Devanagari, French accents), 1M training pairs per half. It runs on Kaggle's 2× T4 (`infra/kaggle/ce`, one
+    half per GPU), and unseen pairs get the mean of both models.
+- **Checks:** a fake work directory ran export → training → scoring → the FEAT-v6 join (0 missing scores), and the
+  Kaggle kernel ran end to end on fake data on the laptop GPU. Throughput of the 4-layer model: laptop RTX 3050
+  (fp16) 1.2k pairs/s training and 8.8k/s scoring; laptop CPU (4 threads) about 40 and 430 pairs/s.
+- **Runs (night of 26–27 Sep).** The pair IDs went up as the private Kaggle dataset `serg4nt/mlc26-ce-pairs`
+  (uploaded by the user). The first Kaggle run (`serg4nt/mlc26-ce2-p100`, 2× T4 despite the P100 request) trained both
+  halves' e5-small models on 800k pairs each (about 17 min, 925 pairs/s per T4). Then one scoring worker was killed for
+  memory: each worker held all 18M pair texts, and ~30 GB of RAM cannot hold two of them. Version 2 streams the pairs
+  in chunks of 500k and splits the unseen pairs between the two models by S1 (q_rid parity), so each pair is scored once.
+  It trains on 1.2M pairs per half (running from 01:54 IST). The runner did the CPU run of ce1 (`chain18`).
+- **How well the cross-encoders alone separate matches** (held-out early-stop pairs, 30k):
+
+| Model | Where | Training pairs per half | Log loss | Accuracy |
+|---|---|---:|---:|---:|
+| ce1: BERT 4×256, normalised text | runner CPU (bf16, 317 pairs/s training, ~2,200/s scoring) | 600k | 0.0593 / 0.0618 | 97.8% / 97.6% |
+| ce2: multilingual-e5-small, raw text | Kaggle 2× T4 (first run) | 800k | **0.0518 / 0.0521** | **98.1% / 98.1%** |
+
+  For comparison, M-v11's full stage-1 LightGBM reaches about 0.040 on the same kind of rows. A text model alone is
+  close to it, and it is a very different signal. On all 2.65M eval pairs, ce1 alone reaches log loss 0.0612
+  (accuracy 97.8%).
+- **M-v25 (M-v11 + ce1) — the largest gain since the test-like universe: eval F0.5 0.9854 → 0.9875 (+0.0021).**
+
+| Eval slice (441,521 S1) | M-v11 | M-v25 |
+|---|---:|---:|
+| F0.5 | 0.9854 | **0.9875** |
+| Doubled-distractor F0.5 | 0.9845 | **0.9870** |
+| Precision / recall | 0.9962 / 0.9639 | **0.9979 / 0.9664** |
+| Singletons / others | 0.9816 / 0.9856 | **0.9928 / 0.9872** |
+| India / US | 0.9817 / 0.9879 | **0.9851 / 0.9891** |
+| Stage 1 alone (p1, best rule) | 0.9833 | 0.9861 |
+
+  The rule chosen on p2 is gated expected-F with gate 0.6. The cross-encoder mostly buys precision on the
+  hard lookalikes (singletons +0.011: fewer false links for S1 records with no match), and India gains most
+  (+0.0034), the country with transliterated and Devanagari names. Train and predict took 7 minutes on the runner.
+  **Test:** 5,750,945 links. France 94.5% of S1 linked with 3.28 links per S1 (M-v11 93.9%, 3.13; the label-free
+  estimate of the truth is 3.31). India 94.0%, 3.29; US 94.2%, 3.38. The validator passes, and the candidate file is
+  M-v11's. Files: `output/runs/NORM-v2__BLK-v5-tlu40__FEAT-v6__MATCH-v6/` (md5 `6457acf2…`).
+- **Kaggle run 3** (texts prepared in their own process, training tokenised per batch, scores saved chunk by chunk
+  under /kaggle/working) ran 03:36–05:03 IST without trouble. Run 2 had lost one worker to memory while training;
+  its surviving worker had reached held-out log loss 0.0452 (98.25%) on 1.2M pairs. Run 3 scored all 18.07M
+  pairs, and on the 2.65M eval pairs **ce2 reaches log loss 0.0472, accuracy 98.24%** (ce1: 0.0612, 97.76%). The
+  scores went Kaggle → laptop → S3 (`experiments/ce/NORM-v2__BLK-v5-tlu40/ce2_*.parquet`, md5 train `e702a55e…`,
+  test `d53f51d8…`). The runner had stopped itself while idle; it was restarted, and chain19 runs M-v26 (ce2),
+  M-v27 (ce2 + its competition context) and M-v28 (FEAT-v9: ce1 + ce2 + context).
+- **Results (chain19, 05:10–05:27 IST; about 6 minutes each):**
+
+| Eval slice (441,521 S1) | M-v11 | M-v25 (ce1) | M-v26 (ce2) | M-v27 (ce2 + context) | **M-v28 (ce1 + ce2 + context)** |
+|---|---:|---:|---:|---:|---:|
+| F0.5 | 0.9854 | 0.9875 | 0.9884 | 0.9884 | **0.9885** |
+| Doubled-distractor F0.5 | 0.9845 | 0.9870 | 0.9880 | 0.9880 | **0.9882** |
+| Precision / recall | 0.9962 / 0.9639 | 0.9979 / 0.9664 | 0.9981 / 0.9680 | 0.9981 / 0.9680 | **0.9983 / 0.9682** |
+| Singletons | 0.9816 | 0.9928 | 0.9927 | 0.9916 | **0.9934** |
+| India / US | 0.9817 / 0.9879 | 0.9851 / 0.9891 | 0.9861 / 0.9899 | 0.9861 / 0.9898 | **0.9864 / 0.9900** |
+| Stage 1 alone | 0.9833 | 0.9861 | 0.9872 | 0.9881 | 0.9883 |
+| Test: France linked, links / S1 | 93.9%, 3.13 | 94.5%, 3.28 | 94.1%, 3.21 | 94.2%, 3.20 | 94.2%, 3.22 |
+
+  The multilingual model (ce2) is worth +0.0009 over the 4-layer BERT (ce1). Both together, with their context, add
+  another +0.0001 on the eval and +0.0002 on the doubled-distractor eval. The context features lift stage 1, not the
+  final score, because stage 2 already reads the rival probabilities. **M-v28 is the leaderboard candidate:** best
+  on both evals, and its two text models read different inputs (normalised ASCII and raw scripts). All runs keep
+  M-v11's candidate file. Files in `output/runs/<version key>/` (M-v28 md5 `21ce5362…`, M-v26 `8f9305f2…`,
+  M-v25 `6457acf2…`).
+- **ce3: multilingual-e5-base** (MIT, 278M), same kernel (`infra/kaggle/ce3`, lr 3e-5, 1.2M pairs per half),
+  10:36–13:43 IST on 2× T4. On the 2.65M eval pairs alone: **log loss 0.0429, accuracy 98.42%** (ce2 0.0472 /
+  98.24%, ce1 0.0612 / 97.76%). Scores in S3 (md5 train `44e87d6b…`, test `b15b092b…`); M-v29 = FEAT-v10
+  (ce1 + ce2 + ce3 + context).
+- **M-v29 (FEAT-v10): eval 0.9887, doubled-distractor 0.9884** (M-v28 0.9885 / 0.9882), precision 0.9984, recall
+  0.9685, singletons 0.9942, India 0.9865, US 0.9902. Small but consistent gain on every metric. Stage 1 alone 0.9885.
+- **Leaderboard: M-v28 scored 0.978** (public; M-v11 0.970, the team's run 0.98). The +0.003 eval gain became
+  +0.008 on the leaderboard: the cross-encoder helps the test, France included, even more than the eval shows,
+  which fits a text model transferring to an unseen country better than hand-made string features.
+
+### Our stage 2 on top of the team's pipeline (`experiments/stack_stage2.py`)
+
+- **Date:** 2026-09-26, 21:40 IST. The team's run scored **0.98** on the public leaderboard (M-v11: 0.970), so it is the
+  submission to build on. Rebuilding its main gain (the cross-encoder, 75% of its XGBoost gain) inside our pipeline
+  would take many GPU hours and at best reach 0.98. The opposite transfer is cheap: our stage 2 learns from the
+  first-stage probabilities of the rival candidates and lifts our F0.5 from 0.9825 to 0.9850 on full data. Their
+  write-up lists "a second-stage stacking model" as not yet tried.
+- **Method:** `stack_stage2.py` is standalone (numpy, polars, LightGBM), so it runs in the team's Kaggle notebook on
+  their scored pairs. Context features from p (rank within the S1, within the S1 and source, and within the target
+  record; best other probability for each; margins; sum; count above 0.5; S1 per record). A LightGBM with binary log
+  loss is cross-fitted over the held-out validation entities (5 folds by entity). The decision rule is chosen on
+  validation for p and for p2 alike (threshold, expected F0.5, gated expected F0.5, with exclusive assignment). The
+  output is written from p2 only if p2 wins on validation. `--france-shift auto` redoes the team's empty-share
+  calibration on the stage-2 output. Checked on synthetic data (validator PASS).
+- **Check on our data:** M-v11's stage-1 p1 on its eval slice (441,521 S1, 2.65M pairs), stage 2 trained only on those
+  held-out entities (3 folds), as the team would train it on their 220,140 validation entities. The per-target
+  features see only the eval S1 as rivals. Result: **0.9833 → 0.9842 (+0.0009)**. The best rule on p1 is gated 0.65
+  (P 0.9954, R 0.9596, singletons 0.9780); on the stacked p2 it is gated 0.55 (P 0.9957, R 0.9618, singletons 0.9837).
+  Our production stage 2 gains +0.0021 (0.9854). It trains on the fit entities (75% of train S1 instead of 20%), sees
+  every rival S1 and has all ~65 stage-1 features. The script takes the team's own features as extra columns, which
+  should recover part of that difference. Without the per-target features: 0.9840 (+0.0007). With our production p2
+  as the input, the script reproduces its 0.9854 exactly and a third stage adds nothing (0.9853), so it keeps p2.
+
+### The team's second pipeline (bi-encoder + cross-encoder + XGBoost) against M-v11
+
+- **Date:** 2026-09-26, 21:05 IST. The teammates' final run R5 (design "B"), from the Kaggle notebook
+  `amazon-ml-er-02-match-submit-ce` (v5). Their write-up, the predictions and a comparison are kept locally in
+  `output/runs/TEAM-B-R5__e5-FAISS__XGBoost-CE/` (not in git: test predictions).
+- **Method (their write-up).**
+  - *Blocking:* a `multilingual-e5-small` bi-encoder (MIT, 118M parameters), fine-tuned contrastively on 2M (S1, match)
+    pairs with same-city batches, then on 1M mined hard-negative triplets. A FAISS IVF search per country gives each
+    S2/S3 record its 3 closest S1 and each S1 its 10 closest records. A per-country percentile cut-off and a
+    logistic-regression graph filter follow. Validation recall 98.16% at 4.78 candidates per S1 (test 5.95); ceiling 0.9946.
+  - *Matcher:* XGBoost on string similarities, per-country IDF overlap, graph and context features, a **cross-encoder
+    score (75% of the gain)**, competition margins and name-ambiguity counts.
+  - *Selection:* exclusive assignment, then per-entity expected F0.5.
+  - *France:* per-country IDF and percentiles, plus a logit shift (2.37) that equalises France's no-match share with
+    the US/India share (5.72%).
+- **Their validation:** 220,140 train S1 (10%) held out from every model: **0.9875** (R1 0.9812 → cross-encoder 0.9856 →
+  margins 0.9867 → name ambiguity 0.9871 → hard-negative encoder 0.9875). The held-out entities apparently stay in the
+  search, like our full-train universe (FULL-v1: 0.9813), not like the test-like one (M-v11: 0.9854). The numbers are
+  therefore not comparable, although 0.9875 against 0.9813 suggests a stronger matcher, most likely the cross-encoder.
+- **Test predictions against M-v11** (validator PASS for both, same 1,732,544 S1):
+
+| | France | India | US |
+|---|---:|---:|---:|
+| S1 linked, team / M-v11 | 94.3% / 93.9% | 94.3% / 94.0% | 94.3% / 94.1% |
+| Links per S1, team / M-v11 | 3.17 / 3.13 | 3.36 / 3.28 | 3.37 / 3.31 |
+| Estimated true links per S1 (label-free S3−S2 excess, ±0.1) | 3.31 | 3.47 | 3.41 |
+| S1 with identical link sets | **64.3%** | 83.6% | 85.6% |
+| Links only in team / only in M-v11 | 62,223 / 53,457 | 110,713 / 46,531 | 73,752 / 32,445 |
+
+  The team's run links more, closer to the estimated truth, so its recall is probably higher. The two agree least
+  on France. **Decision:** upload the team's TSV to the leaderboard (a milestone: a different pipeline). If it beats
+  0.970 it becomes the final package, whose candidate file (5.95 per S1) is also smaller than M-v11's (6.5); the
+  package then needs its own `candidate_pairs.tsv` and code.
+
+### Different approaches (evening of 2026-09-26): structural rules, covariate shift, the unrun versions
+
+- **Brainstorm, ranked by expected gain and what fits tonight:**
+  1. Rules from how the data was built (decision level, no retraining).
+  2. Links through the entity's other records.
+  3. An acronym/initials blocking key (36% of missed links were never candidates).
+  4. A third stacking stage.
+  5. A transformer cross-encoder (MiniLM/E5, Apache/MIT; needs GPU hours).
+  6. An LLM judge for the uncertain pairs (needs GPU hours).
+  7. Domain adaptation toward the unseen country.
+- **Rules from how the data was built are true in train, but the model already uses them.** Targets without an address
+  are 97.7% linked (S2) and 97.7% (S3), against 72.5–73.8% for records with one. Web-style names are 96.2%, alias names
+  (S3) 100%, and addresses without a digit 97.4%: such records are almost never distractors. 85.2% of linked S1 have
+  matches in both sources. Simulated on M-v11's eval scores (baseline 0.9854):
+  - linking these targets to their best S1 when p2 ≥ 0.05 / 0.1 / 0.2 / 0.3 gives 0.9792 / 0.9809 / 0.9828 / 0.9836;
+  - adding the best other-source candidate for S1 linked in one source only gives 0.9811 / 0.9826 / 0.9841 / 0.9845.
+
+  p2 is calibrated for these targets (the 0.3–0.4 band is 38% true, the 0.4–0.5 band 47%): the flags are features
+  and the model already accounts for them. Not used.
+- **Covariate-shift weighting (MATCH-v22, `covshift`)**, a classic domain-adaptation method. A domain classifier
+  separates training rows from the unseen country's rows on the stage-1 features (features only, never labels, 2-fold
+  cross-predicted), and each training row is weighted by the odds that it looks like the unseen country. The raw odds
+  collapsed the effective sample to 3% (the countries are almost separable: Devanagari records, address lengths). The
+  weights are therefore tempered: a weak classifier (15 leaves, 50 trees), the square root of the odds, clipped to
+  [0.1, 10] times the mean, which gives an effective sample of 38%. Checked both ways (M-v22-us, M-v22-in against
+  M-v19-us/in), then applied to France (M-v22).
+- **The registered versions never run on full data run on M-v11's filtered candidates:** MATCH-v8 (XGBoost), MATCH-v9
+  (LightGBM + XGBoost), MATCH-v3 (support features), MATCH-v5, MATCH-v2, MATCH-v1 and MATCH-v4 (prediction early
+  stopping). M-v10 runs exactly as registered (unfiltered). M-v8/M-v9 as registered would inherit M-v7's rejected
+  copied universe, and M-v4 needs the full-train universe (worse on the leaderboard), so their matchers run on the
+  current candidates instead. The frozen diagnostics (MATCH-v2-frozen, MATCH-v6-frozen-tlu) need fold models from the
+  suspended account and from the Kaggle session, so they are not run. Queue: chain14 on the runner, replaced after
+  M-v22 by chain15, which runs the blend transfer check (M-v23/M-v24) first.
+- **Results (full data, eval slice as always; unseen = the held-out country's eval):**
+
+| Run | What | Eval F0.5 | Doubled-distractor | Unseen country | Test: France linked, links / S1 |
+|---|---|---:|---:|---:|---|
+| M-v11 | LightGBM (reference) | 0.9854 | 0.9845 | — | 93.9%, 3.13 |
+| MATCH-v8 on BLK-v5 | XGBoost | 0.9853 | 0.9843 | — | 93.9%, 3.13 |
+| MATCH-v9 on BLK-v5 | LightGBM + XGBoost | **0.9855** | 0.9845 | — | 93.8%, 3.13 |
+| M-v19-us → M-v22-us | + covariate-shift weights, US → India | US 0.9874 | | India **0.9404** (0.9444 without) | |
+| M-v19-in → M-v22-in | + covariate-shift weights, India → US | India 0.9807 | | US **0.9662** (0.9637 without) | |
+| M-v22 | + covariate-shift weights toward France | 0.9853 (US and India) | | — | 93.9%, 3.12 |
+| M-v23-us | XGBoost, US → India | US 0.9877 | | India **0.9408** (LightGBM 0.9444) | 94.6%, 3.29 |
+| M-v23-in | XGBoost, India → US | India 0.9815 | | US **0.9666** (LightGBM 0.9637) | 93.8%, 3.10 |
+| M-v24-us | LightGBM + XGBoost, US → India | US 0.9878 | | India **0.9430** | 94.6%, 3.28 |
+| M-v24-in | LightGBM + XGBoost, India → US | India 0.9817 | | US **0.9651** | 94.0%, 3.10 |
+| MATCH-v3 on BLK-v5 | support features (MATCH-v2: fit 30%, lr 0.05) | 0.9850 | 0.9840 | — | 94.1%, 3.16 |
+| MATCH-v4 on BLK-v5 | MATCH-v2 + LightGBM prediction early stopping | 0.9846 | 0.9835 | — | 94.1%, 3.16 |
+| MATCH-v2 on BLK-v5 | two stages, fit 30%, lr 0.05 | 0.9846 | 0.9835 | — | 94.1%, 3.16 |
+| MATCH-v5 on BLK-v5 | MATCH-v2 with lr 0.1 | 0.9845 | 0.9834 | — | 94.0%, 3.16 |
+| MATCH-v1 on BLK-v5 | stage 1 only, threshold 0.675 | 0.9823 | 0.9808 | — | 94.0%, 3.15 |
+
+  Covariate-shift weighting helps one direction (+0.0025) and hurts the other (−0.0040): not reliable, not used. XGBoost
+  and the LightGBM + XGBoost blend tie M-v11 on the eval. Since the eval is saturated (more than a dozen variants at
+  0.9854 ± 0.0003), the next check was whether the blend *transfers* better to an unseen country: M-v23 (XGBoost fitted
+  on one country) and M-v24 (its blend with M-v19's LightGBM), both ways (chain15, done 21:18 IST).
+- **The blend does not transfer better.** Averaged over both directions, the unseen country scores 0.9540 with LightGBM,
+  0.9537 with XGBoost and 0.9541 with the blend. XGBoost loses 0.0036 from US to India and gains 0.0030 from India to
+  US: the same see-saw as the covariate-shift weights. The direction depends on the pair of countries, so no model
+  family is a safer bet for France. In-country scores tie as well (US 0.9877–0.9878, India 0.9815–0.9817).
+  **M-v11 stays the submission.** MATCH-v3's support features do not make up for fitting on 30% of the entities
+  instead of 75% (0.9850 against 0.9854).
+- **The older matchers, now all measured on the same candidates:** fitting on 75% of the entities instead of 30% is
+  worth +0.0009 (M-v11 0.9854 against MATCH-v2 0.9846), and the second stage +0.0023 (MATCH-v2 against the stage-1-only
+  MATCH-v1, 0.9823). MATCH-v4's prediction early stopping costs nothing measurable (0.9846), and lr 0.1 against 0.05
+  is a tie (MATCH-v5 0.9845).
+- **Transfer ablation (`experiments/transfer_ablation`):** no group of features hurts the unseen country. Dropping any
+  group raises the unseen-country log loss (baseline 0.1407; without the number features 0.2022). So the transfer loss
+  is not one bad group of features. **In-country Optuna (`tune_lgb`, 39 trials):** log loss 0.03970 → 0.03933 (−0.9%)
+  with 197 leaves, min_data 60, feature_fraction 0.61, lambda_l2 0.12. The gain is small and not run end to end.
+  chain15 was stopped before M-v10 at the user's choice (22:51 IST).
+
+### The unseen country — leave-one-country-out (M-v19) and self-training (M-v20)
+
+- **Date:** 2026-09-26, after M-v11 scored **0.970** on the public leaderboard (M-v5: 0.971; eval 0.9854 and 0.9852).
+  Every model since M-v5 scores ~0.985 on the test-like eval and ~0.970 on the leaderboard, and none of the matcher
+  changes moved the leaderboard. Doubling the lookalikes costs only 0.001 on the eval, so the gap needs another cause.
+- **Test profiles by country are nearly identical across M-v5, M-v6 and M-v11** (France 93.9% of S1 linked, 3.13 links
+  each; India 94.0–94.1%, 3.28–3.30; US 94.1%, 3.30–3.31). On France the models disagree most: 10% of French link
+  sets differ between M-v11 and M-v5, against 5–6% elsewhere. A label-free estimate of the true links per S1, from
+  the per-source record counts (the S3−S2 excess; ±0.1 on train), gives France 3.31, India 3.47, US 3.41. That is the
+  same ratio of predicted to true links in all three countries, so the counts alone do not single out France.
+- **Leave-one-country-out** (`train_countries`, M-v19): fit on one country, choose the rule on that country's eval
+  entities, and score the other country as unseen. That is France's situation, except the held-out country keeps
+  its learned aliases, so the loss shown is a lower bound.
+
+| Fitted on | Unseen country | Its F0.5 unseen | Same country, fitted (M-v11) | Loss | Precision | Recall | Singletons |
+|---|---|---:|---:|---:|---:|---:|---:|
+| US (M-v19-us) | India | **0.9444** | 0.9817 | **−0.037** | 0.963 (0.995) | 0.921 (0.955) | 0.852 (0.977) |
+| India (M-v19-in) | US | **0.9637** | 0.9879 | **−0.024** | | | |
+
+  The fitted country keeps its score (US 0.9877, India 0.9816). **An unseen country loses 0.024–0.037**, both in
+  precision (links to lookalikes, and false links for S1 records with no match) and in recall. The unseen model even
+  links more (India 94.9% of S1, 3.46 links each), just to the wrong records. France, 15% of the test S1 records,
+  has no labels and no aliases. At 0.93–0.95 it would cost the leaderboard 0.005–0.008. At ~0.88, the value that
+  would put the leaderboard at 0.970 with India and US at their eval scores, it would explain the whole gap.
+- **A decision rule cannot fix it.** The best of all 99 rules on India's own labels (oracle) gives 0.9446 against
+  0.9444 for the rule chosen on the US. The loss is in the scores, not the threshold.
+- **Self-training (MATCH-v20):** the first model's confident candidates in the unseen country become
+  pseudo-labelled fit rows. A candidate that is the best for its target with p2 ≥ 0.9 counts as a match; one with
+  p2 ≤ 0.1 counts as a non-match. Both stages are then retrained, and the country's entities are scored
+  out-of-fold, so no pseudo-label scores its own entity. M-v20-us checks it on India (fitted on US + India's
+  pseudo-labels, India's eval slice untouched by true labels), and M-v20 applies it to France.
+- **M-v20-us: self-training recovers almost nothing.** India unseen goes from 0.9444 to **0.9458** (+0.0014 of the
+  0.037 loss), with the US unchanged (0.9877). It had 1.45M pseudo-matches, 1.28M pseudo-non-matches and 0.23M rows left
+  out. The unseen model's errors are *confident* wrong links, which the pseudo-labels simply confirm. M-v20 (France) runs
+  for completeness but is not worth a leaderboard submission.
+- **Next: tune for transfer.** `experiments/tune_transfer.py` searches the stage-1 parameters with Optuna. Every trial
+  is trained on one country and scored by log loss on the other (US→India and India→US), never on the eval slice. The
+  space includes what should help an unseen country: data-driven monotone constraints (`model.monotone_signs`: features
+  whose correlation with the label is large keep that direction), extra-trees, path smoothing and stronger
+  regularisation. The winner is confirmed through the full two-stage pipeline in both directions before France gets
+  it. SageMaker Automatic Model Tuning would run the same kind of search, but the account's SageMaker training quota is
+  still 0 (requests pending since 09:28 IST), so it runs on the EC2 runner. The unseen country's log loss is about 4×
+  the in-country one (US→India 0.148 against 0.038; India→US 0.133 against 0.040). The first random trials were worse
+  than the current parameters (0.159, 0.179 against 0.1407), and the search was stopped after 3 trials for the finding
+  below, which targets France directly.
+- **Why France fails: its house numbers are filtered out as "frequent".** A per-feature shift test (Kolmogorov–Smirnov,
+  150k rows per group: train against French test candidates, and US against India) puts the address features on top.
+  The distinctive-address length is 2 tokens for France against 3 (US) and 5 (India). The distinctive-address
+  similarity has a median of 100 for France against 88.9 and 77.1, and `cos_addr` a median of **1.0** against 0.83
+  and 0.87. French addresses do have numbers (99.6% of S1 records). But small numbers are common in France: 30
+  numeric tokens ('1'…'12' at 2–3.5% each) appear in over 1% of French S1 addresses. So the blocking IDF cap and the
+  distinctive-part filter (tokens in over 1% of a country's records) both drop them.
+
+| Candidates with… | France (test) | India | US |
+|---|---:|---:|---:|
+| identical address vector (`cos_addr` = 1) | **64%** | 34% | 33% |
+| … and disjoint house numbers (`num_jacc` = 0) | **19.3%** | 1.9% | 0.006% |
+
+  In training that combination is rare (US: 189 rows; India: 42,849 rows, of which only 5.6% are true links), so the
+  model reads a same-street lookalike with another number as the same address. That is 1 French candidate in 5.
+- **FEAT-v5 (M-v21 = BLK-v5-tlu40 + FEAT-v5 + MATCH-v6):** numbers are never frequent tokens (the distinctive parts keep
+  the house number, French frequent address tokens 83 → 52), plus `addr_twin_num_diff` = identical address vector but
+  disjoint numbers. Blocking is unchanged (cos_addr keeps the IDF cap), so the candidates are M-v11's.
+- **M-v21 result: no measurable change.** Eval F0.5 **0.9854** (P 0.9961, R 0.9640; India 0.9818, US 0.9878), identical to
+  M-v11. The test profile is unchanged too (France 93.9% linked, 3.14 links per S1). **M-v11 had already avoided the
+  twins:** only **0.46%** of its French links are twin pairs, although twins are 19.3% of French candidates. The
+  house-number features did the job that the address cosine could not. M-v21 lowers that share to 0.43% and changes
+  about 1.5% of French links (5.6k removed, 6.9k added, of 813k). The quirk is real but not where France loses.
+- **Reading French predictions** (12 random French S1 records with every candidate, p2 and the links). The links are
+  the same business under typos and format changes ("#15 R. Des Ecachoirs", "Communale Slnfe", "Zetagild f/k/a Lille
+  Loisirs SARL", "0067 Ave De Gradignan"). The rejected candidates are the planted lookalikes: the same name at another
+  number ("… Holding SARL | 72 Rue Violette" for 71), or another name at the same address ("Communale Amicale"). No
+  systematic error is visible. The open cases are same-name targets without an address, with a different legal form
+  ("Saint-Herblain Parents SCI | None"), which the model leaves out (p2 0.004–0.06).
+- **Conclusion for tonight.** A single-country model loses 0.024–0.037 on an unseen country, but M-v11 learns from two
+  and behaves sensibly on France. Self-training (+0.0014 on the India stand-in), the transfer search and FEAT-v5
+  (no change) give nothing measurable, so **M-v11 stays the final submission** (leaderboard 0.970, 6.5 candidates per
+  S1). The eval–leaderboard gap (0.985 against 0.970) remains only partly explained. Its likely parts are France's
+  unmeasured score and the test's denser lookalikes, which the doubled-distractor eval approximates only leniently.
+
+### Model families and loss functions, chosen from the data — M-v13 to M-v18
+
+- **Date:** 2026-09-26. Commit `a8bfca7`. All on the filtered candidates (BLK-v5-tlu40 + FEAT-v4), same eval slice.
+- **What the data says about the loss.**
+  - *The metric needs calibrated probabilities.* The per-S1 set is chosen by a threshold or by expected F0.5, which
+    reads the scores as probabilities. So the base loss is a proper scoring rule: **binary log loss**. It is what every
+    model here minimises.
+  - *After the filter the classes are no longer imbalanced.* 93% of the kept rows are true links (1% sample). The
+    negatives left are the hard lookalikes: same name, same street, nearby number. **Focal loss** exists to
+    down-weight a flood of easy negatives, and the filter has already removed them. It would also bend the
+    probabilities away from calibration. Not used.
+  - ***AdaBoost's exponential loss*** grows exponentially with the margin of a mistake. Our labels have irreducible
+    noise: invented trade names, records whose only link is another record of the entity. That noise would dominate
+    the fit, and the scores are not probabilities (the expected-F rule needs them). Gradient boosting with log loss is
+    its robust successor, and LightGBM, XGBoost and CatBoost already are that. Not used (scikit-learn's AdaBoost is
+    also BSD-licensed, and the rules ask for MIT/Apache-2.0).
+  - *The test has twice the lookalikes per S1.* Up-weighting distractor rows ×2 corrects for that prior shift:
+    **MATCH-v10 / M-v12**.
+  - *The metric is a macro average over S1 records, and one error costs very different amounts by entity.* A wrong
+    link costs a no-match S1 its whole score (1.0), a 1-link S1 0.44 and a 5-link S1 0.14. A missed link costs a
+    1-link S1 everything, a 2-link S1 0.17 and a 5-link S1 0.05. Log loss treats all pairs alike. **MATCH-v17 / M-v17**
+    weights each row's log loss by exactly this cost, computed from the S1's number of true links (`fp_cost`,
+    `fn_cost` in `ber/model.py`), with mean weight 1. At 1%, negatives get 2.9× the weight of positives.
+- **Model families** (all Apache-2.0/MIT or our own code, cross-fitted like MATCH-v6, same early-stopping slice):
+  - CatBoost (MATCH-v15): symmetric trees (depth 8), ordered boosting. Different trees from LightGBM's leaf-wise
+    growth, so its errors differ, which is what a blend needs.
+  - A neural network (MATCH-v13), written in numpy: two ReLU layers (256, 128), signed-log and standardised inputs
+    with missing-value flags, **Adam** (lr 1e-3, batch 2,048), learning rate halved whenever the early-stopping loss
+    stalls, stopped after 4 such epochs, best epoch kept. Nothing pretrained, no framework.
+  - Blends (means of stage-1 and stage-2 probabilities, rule chosen again): LightGBM + net (M-v14), LightGBM + CatBoost
+    (M-v16), all three (M-v18).
+- **1% smoke run** (4,403 eval S1, noise about ±0.001, so this only checks that they run):
+
+| Run | Model / loss | Eval F0.5 | Doubled-distractor |
+|---|---|---:|---:|
+| M-v11 | LightGBM, log loss | 0.9953 | 0.9946 |
+| M-v12 | LightGBM, distractors ×2 | 0.9952 | 0.9946 |
+| M-v13 | neural net (Adam) | 0.9936 | 0.9925 |
+| M-v14 | LightGBM + net | 0.9949 | 0.9943 |
+| M-v15 | CatBoost | 0.9952 | 0.9944 |
+| M-v16 | LightGBM + CatBoost | 0.9955 | 0.9948 |
+| M-v17 | LightGBM, metric-aligned weights | 0.9952 | 0.9946 |
+| M-v18 | LightGBM + net + CatBoost | 0.9950 | 0.9944 |
+
+  The net trails at 1% (about 16k rows per fold); on the full data it gets about 200 times more.
+- **Full data** (EC2; same 441,521 eval S1; 6.5 candidates per test S1 for all):
+
+| Run | Model / loss | Eval F0.5 | Doubled-distractor | P | R | Singletons | Rule | Test: S1 linked, links / S1 |
+|---|---|---:|---:|---:|---:|---:|---|---|
+| **M-v11** | LightGBM, log loss | **0.9854** | **0.9845** | 0.9962 | 0.9639 | 0.9816 | p2 expected-F 0.4 | 94.0%, 3.13–3.31 |
+| M-v12 | LightGBM, distractors ×2 | 0.9852 | 0.9845 | 0.9969 | 0.9618 | 0.9855 | p2 expected-F 0.2 (chosen on the doubled eval) | 93.9%, 3.10–3.29 |
+| M-v17 | LightGBM, metric-aligned weights | 0.9851 | 0.9840 | | | | p2 threshold 0.5 | 93.9%, 3.13–3.32 |
+| M-v13 | neural net (Adam), both stages | 0.9825 | 0.9811 | | | | p2 gated expected-F 0.55 | 94.2%, 3.27–3.39 |
+| M-v14 | LightGBM + neural net | 0.9847 | 0.9839 | | | | p2 gated expected-F 0.5 | 94.1%, 3.16–3.33 |
+| M-v15 | CatBoost, both stages | 0.9850 | 0.9840 | 0.9959 | 0.9634 | 0.9791 | p2 expected-F 0.2 | 94.0%, 3.10–3.35 |
+| M-v16 | LightGBM + CatBoost | 0.9854 | 0.9845 | 0.9963 | 0.9636 | 0.9823 | p2 gated expected-F 0.5 | 94.0%, 3.11–3.32 |
+| M-v18 | LightGBM + net + CatBoost | 0.9851 | 0.9842 | 0.9963 | 0.9625 | 0.9807 | p2 gated expected-F 0.45 | 94.1%, 3.13–3.34 |
+
+  **None of the loss or model changes beats plain log-loss LightGBM.** The metric-aligned weights (M-v17) lose 0.0003:
+  bending the loss toward the metric double-counts what the expected-F rule already does with calibrated
+  probabilities. The neural net (M-v13) trails by 0.0029 even with 200× the smoke run's data (stage 1 stopped at
+  val log loss 0.041; LightGBM's trees handle these thresholded, heavy-tailed features better). Averaging it in
+  (M-v14) costs 0.0007, so its errors are not different enough to help.
+  CatBoost (M-v15) trails by 0.0004. Its stage-1 folds hit the 3,000-tree cap at lr 0.1 (7 min each, 30 min for the
+  run against LightGBM's 10). Averaged with LightGBM (M-v16) it ties M-v11 to four decimals (P +0.0001, R −0.0003),
+  and the three-model mean (M-v18) is lower. **Conclusion: M-v11 (plain log-loss LightGBM) is the final model.** A
+  tie is no reason to ship a heavier two-model pipeline. On this data the model family and the loss are no longer the
+  bottleneck: the eval slice's perfect-matcher ceiling is 0.9945, and the remaining loss is recall on links whose
+  evidence is missing (invented names, replaced house numbers, no address).
+  M-v12 trades 0.0021 recall for 0.0007 precision and protects singletons (+0.0039), but ties M-v11 on the doubled-
+  distractor eval, which is where it should have won. M-v11 stays first. CatBoost failed on the first attempt: the
+  runner's uv environment has no pip, so chain6's install step did nothing. catboost 1.2.10 was installed with uv at
+  ~17:15 IST, and chain7 reruns M-v15, M-v16 and M-v18 after chain6 (M-v17, M-v13, M-v14).
+
+### BLK-v5 — a learned candidate filter: from 48 to a few candidates per S1 (M-v11, M-v12)
+
+- **Date:** 2026-09-26. Commit `0d4079d`. Why: the organisers announced on 2026-09-26 that `candidate_pairs.tsv` counts in
+  the final ranking, and a smaller candidate set per S1 ranks higher. It must be the exact set the matcher scores (the
+  last of several blocking/filtering stages is allowed). Our search kept 47.8 per S1 in the test-like universe (48.1 on
+  the test), almost all of them low-ranked rivals: ~3.4 true links per S1.
+- **Uniform top-k is a poor lever.** From the M-v6 search (eval slice): top-5 / 10 / 20 per source find 96.49 / 97.90 /
+  98.69% of true links at 17.8 / 27.8 / 47.8 candidates per S1 (the name-only pass alone adds 7.8). Halving the list
+  costs 0.8 points of recall.
+- **Method: a second blocking stage.** A small LightGBM (63 leaves, lr 0.1, 3 folds) sees only what the search produced:
+  the source, the blocking score and its name and address cosines, the name-only flag, and the competition context of
+  those scores (rank within the S1's list per source and overall, gap to the S1's best, list length, how many S1
+  records retrieved the target and this S1's rank among them, margin over the best other S1, S1 name frequencies). No
+  string similarity: it is cheap and runs on the search output only. It is trained like the matchers (fit and rest
+  entities of the universe, out-of-fold on fit rows, fold mean elsewhere). The threshold keeps **99.5% of the true links
+  the search found for fit entities** (out-of-fold, so the eval slice is never used to choose it). Features, training and
+  the decision rule then run only on the kept candidates, so the file is exactly what the matcher scores. The search
+  output of BLK-v4b@20-tlu40 is reused when cached.
+- **1% smoke run (Kaggle CPU):** 45.6 → **3.7 candidates per S1** on train; eval pair recall 0.9995 → 0.9933; eval F0.5
+  0.9952 (unfiltered smoke runs: 0.9954–0.9956); a perfect matcher on the kept candidates would score 0.9983. The curve
+  (share of found fit links kept: eval pair recall, candidates per S1): 0.98: 0.9787, 3.4; 0.99: 0.9889, 3.5; 0.995:
+  0.9933, 3.7; 0.997: 0.9960, 4.0; 0.999: 0.9981, 5.6. The sample has ~10× less competition than the full data, so the
+  full run decides.
+- **Full run (M-v11 = BLK-v5-tlu40 + FEAT-v4 + MATCH-v6, EC2, 15:58–17:00 IST).** Filter folds: 21M rows each, 1,000
+  trees (the cap; still improving), 3.4 min each; scoring all 138M search candidates took 34 min. Curve on the full
+  data (share of found fit links kept: eval pair recall, candidates per S1 train/test): 0.98: 96.74%, 4.5/5.3;
+  0.99: 97.73%, 5.2/5.7; **0.995: 98.21%, 6.0/6.5**; 0.997: 98.40%, 6.6/7.1; 0.999: 98.59%, 8.4/8.5 (search alone:
+  98.69%, 47.8/48.1). At 0.995: p50 6, p90 10, p99 14, max 40 candidates per test S1; 0.03% of test S1 have none.
+
+| Run | Candidates / S1 (test) | Pair recall (eval) | Perfect matcher | Eval F0.5 | P | R | Doubled-distractor | India | US | Test: S1 linked | Links / S1 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| M-v6 (search only) | 48.1 | 98.69% | 0.9959 | **0.9856** | 0.9960 | 0.9647 | — | 0.9822 | 0.9878 | 94.1% | 3.27 |
+| **M-v11 (filtered)** | **6.5** | 98.21% | 0.9945 | 0.9854 | 0.9962 | 0.9639 | 0.9845 | 0.9817 | 0.9879 | 94.0% | 3.13–3.31 |
+
+  **7.4× fewer candidates for −0.0002 F0.5.** The filter drops 0.48 points of pair recall, but the matcher had
+  found only a fraction of those links anyway (recall −0.0008), and precision rises by 0.0002. Chosen rule: stage 2,
+  expected-F (floor 0.4). The matcher also gets cheaper: 4.2M training rows (56.8% positive) instead of ~25M, stage-1
+  folds in 45 s, train + predict in 11 min. Test: 5,664,142 links (M-v6: 5,672,242), validator passes, md5
+  `f96f52d7…` (matching) / `64f56033…` (candidates, 167 MB instead of ~1.1 GB). **M-v11 replaces M-v6 as the next
+  upload**; the remaining experiments (M-v12 to M-v18) run on its candidates and features.
+
+### M-v6 and M-v7 on full data — copied distractors teach the model to spot copies (M-v10 instead)
+
+- **Date:** 2026-09-26. M-v6 ran on a Kaggle TPU VM (queued 3.5 h, run 1 h 50 min); M-v7 on the new EC2 runner
+  (09:45–13:18 IST: prep 6 min, block 20 min, features 50 min, train 2 h 17 min, of which stage-1 scoring of 188M pairs
+  took 54 min; peak 58.8 GB).
+
+| Run | Eval slice | F0.5 | P | R | Singletons | India | US | Test: S1 linked | Test links / S1 |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| M-v5 (LB 0.971) | test-like (tlu40) | 0.9852 | 0.9957 | 0.9644 | 0.9808 | 0.9818 | 0.9875 | 94.1% | 3.27 |
+| **M-v6** (+ FEAT-v4) | test-like (tlu40) | **0.9856** | 0.9960 | 0.9647 | 0.9812 | 0.9822 | 0.9878 | 94.1% | 3.27 |
+| M-v7 (dup2 universe) | doubled distractors (copies) | 0.9856 | 0.9978 | 0.9599 | 0.9924 | 0.9819 | 0.9880 | **98.5%** | **4.20** |
+
+- **M-v6:** +0.0004 over M-v5 on the same slice; the test link count is unchanged (5,672,242 vs 5,672,319), but it changes
+  the link set of 6.9% of French S1 against 3.4–3.6% elsewhere, which is where FEAT-v4 aims. The validator passes.
+  Candidate for the next leaderboard submission.
+- **M-v7 fails on the test.** Its eval looks sound (precision 0.9978), but it links 98.5% of test S1 with 4.20 links each
+  (7.27M links against M-v5's 5.67M; truth ~94% and ~3.4). Every copied distractor sits next to an exact twin in its S1's
+  list: the same record, the same scores, a doubled name count. The model learned "an exact twin means a distractor", which
+  holds on the dup2 eval slice (it has copies too) and never on the test, where it then reads real lookalikes as matches.
+  The smoke test had warned of it (34% / 16% / 10% of test S1 linked in the 1% sample, 2.5× the tlu40 model), and so had
+  the `p1_margin_q` tie. **Lesson: a train-time augmentation must not leave a fingerprint the test lacks; check the test
+  profile (share linked, links per S1) before trusting an eval.** M-v8 (XGBoost) and M-v9 (blend) used the same features
+  and were stopped.
+- **M-v10 (`MATCH-v10`, preset M-v10): the same density without copies.** On M-v6's universe and features, distractor rows
+  get training weight 2 (the loss sees twice the lookalikes per S1), and the rule is chosen on a **doubled-distractor
+  eval**: every link to a distractor counts twice among an S1's predictions, which is what twice the lookalikes does to
+  precision when the model takes one of them. Every run now reports this second eval next to the plain one. It cannot
+  count a second lookalike taken where the first was not, so it errs on the lenient side.
+
+### Test distractors are lookalikes of present S1 records — M-v7 doubles every distractor
+
+- **Date:** 2026-09-26 (08:45–09:10 IST)
+- **Question:** M-v5 scores 0.9852 on the test-like eval slice but 0.971 on the leaderboard. Is the rest of the gap France (M-v5's
+  analysis implied France ≈ 0.89), or is the test-like universe still easier than the test?
+- **Script:** `experiments/distractor_twins.py <dataset_dir>` (raw TSVs, a 3% hash sample of targets, runs on the laptop).
+  A *twin* of a target is an S1 record of the same country with the same core-name key whose address shares ≥ 30% of its
+  words (≥ 50%, ≥ 70% as checks): a same-name, same-street lookalike.
+
+**1. Train distractors are lookalikes of specific S1 records.** Examples: S1 "Global Foundation VI, 14655 Summit View Lane,
+Loudoun County, VA" has the distractor "Global Foundation VI Corp, 14664 Summit View Ln, Loudoun County, Virginia"; S1 "Turner,
+German and Feist, 12010 Jantzen Drive, Portland" has "Co Turner, German and Feist, 12031 JANTZEN DRIVE". Distractors carry the
+same formatting noise as true matches (upper case 24% vs 26%, double spaces 9% vs 11%, brackets 9.5% vs 9.8%), so
+formatting does not separate them.
+
+**2. Twin rates (share of targets with a twin, overlap ≥ 0.3):**
+
+| Targets | India | US |
+|---|---:|---:|
+| Train matched records | 0.367 | 0.467 |
+| Train distractors, all S1 present | 0.097 | 0.200 |
+| Train distractors, 40% of S1 kept (test-like universe) | 0.041 | 0.081 |
+| Test, all targets | 0.256 | 0.358 |
+| **Test distractors** (test rate minus 60% matched at the train rate, over the 40% distractor share) | **0.090** | **0.201** |
+
+Test distractors are twins as often as train distractors with every S1 present, not as rarely as in the test-like universe.
+The generator seems to write each distractor from a present S1, so the test, with twice the distractors per S1, has twice the
+hard lookalikes per S1. The test-like universe doubled the count with orphans: dropping an S1 leaves its lookalikes looking
+like no present record, which are easy negatives. Its eval slice therefore faces about half the test's hard lookalikes and
+overstates the test score in every country. The "France ≈ 0.89" estimate assumed it did not, and is withdrawn.
+France behaves like the other countries on unlabelled checks: a house-number conflict in 0.9% of M-v5's French links (India
+0.9%, US 2.7%), and the models FULL-v1 and M-v5 disagree on 8.2% of French S1 (US 8.5%, India 5.4%).
+
+**3. Fix: `BLK-v4b@20-dup2` (preset M-v7 = NORM-v2 + BLK-v4b@20-dup2 + FEAT-v4 + MATCH-v6).** The full train universe with
+every distractor twice: 2.3 (US) and 2.6 (India) distractors per S1 (test 2.3), with train's mix of easy and hard ones, so
+twice the lookalikes per S1. Blocking searches the originals; each copy then gets its original's candidate rows and every
+list is cut back to its top k, which gives the lists a search over the doubled targets would (a copy ties with its
+original and takes the next slot). Features count the copies (name frequencies, frequent tokens). The eval slice is the same
+441,521 S1 entities, now facing test-like lookalike density; the US keeps the train's S1 density (twice the test's).
+- **1% smoke test (Kaggle CPU, 275 s):** runs end to end. 26,818 copies; candidates 1,007,953 → 1,009,944 (the lists were
+  full, so copies replace the weakest candidates); 2.43 distractors per S1. On the smoke test sample it linked 34% of French,
+  16% of Indian and 10% of US S1 (almost all false there), against 12.7 / 6.4 / 4.6% for the tlu40 + FEAT-v4 smoke model.
+  At 1% every rule scores within 0.0003 (threshold 0.675 chosen), so the rate is mostly the rule; the full-data eval decides.
+- **Possible artifact:** a copied distractor ties with its copy, so its stage-2 `p1_margin_q` is never positive, which the
+  test's distractors can be. Its stage-2 gain share is 0.2% in the smoke model; check it in the full run.
+
+### M-v5 — the test-like universe, number-gap features, 75% of entities fitted
+
+- **Date:** 2026-09-26 (00:01 IST)
+- **Versions:** NORM-v2 + **BLK-v4b@20-tlu40** + **FEAT-v3** + **MATCH-v6** (preset M-v5). Run by chain8 on the runner (`pipe6/`).
+- **Hypothesis:** training in a universe with the test's distractor density (~2.3 per S1) teaches the model test-like priors. The number-gap features (+0.0014 on DEV-10) and three times the fitted entities help on top.
+
+**Methodology**
+- **Universe:** every eval S1, plus 40% of the other train S1 entities with their true targets. That leaves 1,147,088 S1 (India 458,739, US 688,349) and 6.65M targets. Both countries have **5.80 targets and 2.34 distractors per S1**, against 5.76–5.82 and 2.34–2.35 in the test set.
+- **Blocking (top-20):** 54.8M train candidates (47.8 per S1). Eval pair recall **98.69%**, against 98.32% in the full universe, since fewer rival records sit in each region. Test: 83.3M candidates, as before.
+- **Features:** FEAT-v3 (55), computed in 1,862 s.
+- **Model:** MATCH-v6, learning rate 0.1, fitted on all non-eval S1 of the universe: 33.7M training rows, 7.15% positive. Stage-1 folds took 236–289 s (388 / 547 / 463 trees); stage-2 folds 134–173 s (260 / 195 / 152 trees). Train stage 3,081 s, peak 23.2 GB. The whole run took 53 minutes.
+
+**Results (test-like eval slice, 441,521 S1)**
+
+| Score / rule | F0.5 | P | R | Singletons | Others |
+|---|---:|---:|---:|---:|---:|
+| Perfect matcher on these candidates | 0.9959 | | | | |
+| Stage 1, gated expected F (gate 0.7) | 0.9834 | 0.9952 | 0.9604 | 0.9764 | 0.9839 |
+| **Stage 2, gated expected F (gate 0.55)** | **0.9852** | 0.9957 | 0.9644 | 0.9808 | 0.9854 |
+| Stage 2, gated expected F (gate 0.6) | 0.9852 | | | 0.9841 | 0.9852 |
+| Stage 2, expected F (floor 0.4) | 0.9851 | | | 0.9764 | 0.9856 |
+
+India 0.9818, US 0.9875.
+
+- **Top stage-1 features by gain:** `margin_vs_other_s1` 56.7%, `rank_for_t` 20.0%, **`num_x_edit` 10.9%**, `al_b_worst` 1.3%, `al_b_n_unaligned` 1.2%, `a_b_in_a` 1.1%, `num_x_loggap` 1.0%. The number-gap features carry 12% of the gain. **Stage 2:** `p1_margin_t` 54.6%, `p1` 43.7%.
+- **Test set:** 5,672,319 links for 1,630,014 of 1,732,544 S1 (94.1% linked). France 0.939 linked with 3.14 links per S1; India 3.29, US 3.31. The validator passes. md5 of `matching_results.tsv`: `9c66b92887f0eced0291bc42f78d8b2f`.
+
+**Analysis**
+- The test-like score (0.9852) is not comparable with FULL-v1's full-universe 0.9813. The test-like universe is easier in one respect (half the rival S1 records, so blocking and exclusivity lose less) and harder in another (twice the distractors per S1). chain10 scores the frozen FULL-v1 model in this universe, to put the two on one scale.
+- **Public leaderboard: 0.971** (FULL-v1: 0.96; top of the board 0.99; the team is ranked ~400). Test-like training closed about half of the gap.
+- **(Withdrawn 2026-09-26: the test-like universe has only half the test's hard lookalikes per S1, so its eval overstates
+  every country; see "Test distractors are lookalikes of present S1 records" above.)** The rest of the gap is most likely France. The test-like eval (0.9852) covers only the US and India. If those countries score about 0.985 on the test too, 0.971 overall puts France (15% of test S1) at about **0.89**. That fits its 3× false-link rate in the 1% smoke check. Next: M-v6 (FEAT-v4, France-robust features).
+
+### France — generic names draw about 3× the false links (FEAT-v4)
+
+- **Date:** 2026-09-25
+- **How we saw it without labels:** the 1% smoke sample draws test S1 records and test targets independently, so almost no true pair survives: nearly every predicted link is wrong. The M-v3 model linked **16.0% of French S1, against 6.8% of Indian and 4.6% of US S1**, so France gets about 3× the false links of the trained countries.
+- **What the false links look like** (raw test records, S1 → linked target):
+  - Same generic name, different street: "La Teste-de-Buch Maison SARL, 13 Square Clos des Chenes" → "La Teste-de-Buch Maison SAS, 57 RUE RAYMOND DAUGEY"; "Lille Parents SARL, 24 Cour Cacan" → "Lille Parents SARL, 1 Rue Du Chemin De Fer"; "Calais Compagnie SAS" → "Calais Compagnie S.A.S, 74 RUE DE VIC"; "Bordeaux Élémentaire SAS" → "SCI Bordeaux Élémentaire"; "Nantes Maison SARL" → "Nantes Maison SAS".
+  - Invented name on the same street, different number: "TGO Comite SARL, 152 Rue du Jardin Public" → "Rizafaye, N° 35 RUE DU JARDIN PUBLIC".
+- **Why:** French S1 names are often "<city> <generic word> <legal form>", and the test covers a handful of cities (Bordeaux, Lille, Nantes, Dunkerque, Saint-Nazaire…). Many unrelated businesses share such a name. French place names are long multi-token strings ("La Teste-de-Buch", "Nouvelle-Aquitaine", "Pays de la Loire"), so the city and region inflate token-set address similarity. The model, trained on US and India, reads "same name, same city" as a match.
+- **No postal codes:** French addresses carry none, so house-number agreement is not inflated.
+- **Fix, country-agnostic (FEAT-v4 = FEAT-v3 + 10 features):**
+  - Per country, the tokens found in more than 1% of its records (S1 and targets) are frequent. These are cities, regions, street types, legal forms and generic words, learned from each country's own records, so France gets them from its test records.
+  - Name and address similarity is recomputed on the distinctive parts, with those tokens removed: ratio, token-set, containment both ways, and the number of tokens left.
+  - Two counts: how many targets share the S1's core name, and how many share the target's.
+  - The model learns from generic US and Indian names ("Primary Care Group", "Cardiology Care") that a matching generic name is weak evidence, and applies that to France.
+  - The FEAT-v3 columns are unchanged (exact-equality check).
+- **How it is checked:** the TLU eval slice (US and India) must not drop, and the 1% smoke France link rate should fall toward the US and India rates.
+- **1% smoke check** (share of test S1 given a link when almost no true pair survives, so almost all of these links are false):
+
+| Model on the 1% sample | France | India | US |
+|---|---:|---:|---:|
+| M-v3 (FEAT-v2), full-train universe | 16.0% | 6.8% | 4.6% |
+| TLU + FEAT-v2 + MATCH-v6 | 20.0% | 6.9% | 5.1% |
+| **TLU + FEAT-v4 + MATCH-v6** | **12.7%** | 6.4% | 4.6% |
+
+  FEAT-v4 removes about a third of France's false links in the same setup, and does not raise the other countries. France is still about twice as high as India and the US. The smoke models learn from 1% of train, so the absolute rates are noisy.
+
+### dev_v3 — number-gap and support features on DEV-10
+
+- **Date:** 2026-09-25
+- **Setup:** `experiments/dev_v3.py` on the DEV-10 cache, same splits and folds as `dev_stack` (baselines: stage 1 0.9894 at threshold 0.725 and 0.9887 with expected F; stage 2 0.9904 / 0.9906).
+
+| Variant | Threshold rule | Expected F |
+|---|---:|---:|
+| Stage 1 + number gap (FEAT-v3) | 0.9907 (0.8) | 0.9903 |
+| Stage 2 + number gap | **0.9918** (0.725) | **0.9918** |
+| Stage 2 + number gap + support (MATCH-v3) | 0.9918 (0.65) | 0.9919 |
+
+- **Number gap:** +0.0013 at stage 1 and +0.0012 at stage 2 (singletons 0.9895 against 0.9935 before; others 0.9919 against 0.9902). `num_x_edit` ranks fifth by stage-1 gain. **Kept: FEAT-v3 and FEAT-v4 include it.**
+- **Support features:** +0.0001, within noise, at an extra cost of ~20 minutes of full-data features. **Dropped.**
+
+### Leaderboard gap — the test set has twice the distractors per S1
+
+- **Date:** 2026-09-25
+- **Trigger:** FULL-v1 scored **0.96 on the public leaderboard**, against 0.9813 on its eval slice. The top of the board is 0.99. Eval rows are scored exactly like test rows, so a 0.02 gap points to a difference between the train and test data, not to noise.
+- **Scripts:** `experiments/shift_check.py` (leak, stats, preds) and `experiments/full_errors.py`, run on the EC2 work dir.
+
+**1. No leak.** Over 7.64M train links, the Spearman correlation between the file row of an S1 record and the rows of its matches is +0.0010 (S2) and -0.0007 (S3). The numeric parts of the IDs give +0.0001 and +0.0002. The S2 and S3 rows of one entity give -0.0004. The top scores do not come from file order or ID numbers.
+
+**2. The data differs.**
+
+| Split | Country | S1 | Targets | Targets / S1 | S1 name shared | Target name = an S1 name | Target no address | Target no number |
+|---|---|---:|---:|---:|---:|---:|---:|---:|
+| train | India | 883,188 | 4,133,346 | 4.68 | 0.541 | 0.609 | 0.030 | 0.092 |
+| train | US | 1,323,633 | 6,186,873 | 4.67 | 0.477 | 0.526 | 0.036 | 0.091 |
+| test | France | 259,452 | 1,434,993 | 5.53 | 0.477 | 0.565 | 0.030 | 0.067 |
+| test | India | 809,986 | 4,717,565 | 5.82 | 0.534 | 0.543 | 0.024 | 0.075 |
+| test | US | 663,106 | 3,817,031 | 5.76 | 0.399 | 0.472 | 0.029 | 0.074 |
+
+**3. How many test targets are distractors?** In train, S2 and S3 hold almost exactly the same number of distractors (1,340,997 and 1,340,857), while the matched records split 3,693,619 : 3,944,746 (ratio 0.9363). The generator therefore seems to add the same number of distractors to each source. Assuming the same matched ratio in test, the S3 − S2 excess (195,043) gives the matched records, and the rest are distractors:
+
+| | Matches / S1 | Distractors / S1 | Distractor share of targets |
+|---|---:|---:|---:|
+| Train US / India | 3.52 / 3.37 | **1.15 / 1.31** | 25% / 28% |
+| Test US / India / France | 3.41 / 3.47 / 3.31 | **2.34 / 2.35 / 2.22** | 41% / 40% / 40% |
+
+The test entities have as many matches as the train ones, but **twice as many distractors per S1**. The US test even has the same absolute number of distractors as the US train (0.78M vs 0.76M per source) with half the S1 records. The lower rates of missing addresses and numbers in test fit this: solved the same way, distractors almost always carry a full address and a number (about 1% miss one) and are never web or alias names, while about 12% of matched records lack a number.
+
+**4. The model behaves the same on test.** Stage-2 profile per country, with eval rows on the full-train universe:
+
+| Split | Country | S1 linked | Links / S1 | Top p2 > 0.95 | Links with p2 < 0.8 | Targets with max p2 > 0.5 |
+|---|---|---:|---:|---:|---:|---:|
+| eval | India | 0.942 | 3.29 | 0.935 | 0.005 | 0.713 |
+| eval | US | 0.942 | 3.33 | 0.937 | 0.003 | 0.720 |
+| test | France | 0.941 | 3.18 | 0.930 | 0.011 | 0.593 |
+| test | India | 0.941 | 3.29 | 0.934 | 0.006 | 0.575 |
+| test | US | 0.941 | 3.31 | 0.934 | 0.006 | 0.587 |
+
+The model is just as confident and links as many records per S1 on test. The share of targets it claims falls with the matched share (~60%). So the extra test errors are *confident* ones, such as a lookalike taken instead of, or next to, the true record, and a stricter threshold cannot remove them. France is a little less certain than the other countries, but it does not collapse.
+
+**Analysis**
+- The eval slice never saw test-like conditions: the model learned its priors, and the competition features (`margin_vs_other_s1` and `rank_for_t` carry 82% of the stage-1 gain), at half the test's distractor density. In the US it also saw twice the test's S1 density.
+- A linear estimate (twice the distractor wrong links) explains only ~0.003 of the 0.02. The rest must come from lookalikes that the denser, rival-rich train universe hid: in train, a lookalike is often claimed by its own S1, which is missing in test.
+- **Fix, validation first:** a test-like train universe (`BLK-v4b@20-tlu40`). It keeps every eval S1 and 40% of the other train S1 entities, and removes the rest together with their true targets. That leaves ~2.3 distractors per S1, and a US S1 density close to the test's. Two runs use it:
+  1. `MATCH-v2-frozen` scores the leaderboard model in it. If it lands near 0.96, the universe reproduces the leaderboard, and its eval slice becomes the validation to trust.
+  2. `MATCH-v6` trains in it, so the model learns test-like priors and the rule is chosen under test-like conditions.
+
+### Error analysis — FULL-v1 on the full-data eval slice
+
+- **Date:** 2026-09-25
+- **Setup:** `experiments/full_errors.py`, stage 2, gated expected-F 0.5, 441,521 eval S1 (1,528,407 true links, 1,463,512 predicted).
+
+| Entity outcome | Entities | Loss (of 0.0187) |
+|---|---:|---:|
+| Some links missed, none wrong | 59,213 | **0.0109** |
+| Has matches, predicted nothing | 1,593 | 0.0036 |
+| Some links wrong, none missed | 4,030 | 0.0021 |
+| Singleton given a link | 556 | 0.0013 |
+| Missed and wrong links | 1,037 | 0.0007 |
+| Has matches, every prediction wrong | 25 | 0.0001 |
+
+| Missed links (70,681 = 4.62%) | Links | Share | Target without address |
+|---|---:|---:|---:|
+| Not chosen by the rule (own p2 mostly 0.05–0.8) | 26,773 | 37.9% | 32% |
+| Never a candidate | 25,676 | 36.3% | 29% |
+| Lost to another S1 under exclusivity | 18,232 | 25.8% | **91%** |
+
+- **Recall is the main loss** (0.0145 of 0.0187). Wrong links are 5,786, 85% of them distractors; 44% have p2 above 0.9.
+- **Not chosen:** true matches whose house number was replaced or perturbed (9052↔9053, 7732↔7730, 733↔831, 3785↔3559), a name word swapped for another (motors↔auto, medicine↔partners), or numbers dropped. Some clear matches still score low, e.g. identical address with a typo-heavy name (ficus vidyalaya ↔ ficus viddyalmaya, p2 0.32).
+- **Lost to another S1:** no-address targets whose name several S1 records share ("all insurance", "eye care", "micki hammond"). The winner has the same core name 77% of the time, and its own p2 averages only 0.26, so the target often goes to nobody. Mostly irreducible from the pair alone.
+- **Never a candidate:** initials or acronyms ("chorus vanijya" ↔ "cvprivate", "cosmos brothers" ↔ "bc"), invented names ("kundan multimedia" ↔ "nylaquo"), and plain typos that still rank below 20 lookalikes ("lakshmi international" ↔ "lksmi international", same address). Top-40 blocking recovers 0.61 points of links.
+- **Wrong links:** near-copies of the S1 record that belong to no S1: the same number with a unit letter ("3027 c douglas ave"), a nearby number plus a PMB, or a name variant at the same address.
+
+### FULL-v1 matcher — M-v3 on the full data
+
+- **Date:** 2026-09-25
+- **Git commit:** `9b5c959`. The runner bundles were packed from the working tree shortly before that commit: `pipe/` for training, and `pipe3/` for the predict re-run with the gated rule.
+- **Hypothesis:** DEV-10 has about 10 times less competition per region than the full data, so its 0.9906 is optimistic. Training and scoring on the full data, with the eval slice contested as densely as the test set, gives the score to expect on the leaderboard.
+
+**Methodology**
+- Preprocessing, blocking and features: NORM-v2, BLK-v4b@20 (see the FULL-v1 blocking entry below), FEAT-v2 (52 features).
+- Model: MATCH-v2. Stage 1 and stage 2 are both cross-fitted over 3 folds of the fit entities (30% of train S1), early-stopped on 5%. Training rows (fit + early stop): 36,648,850, 7.17% positive. LightGBM, learning rate 0.05, 255 leaves.
+- Stage 2 has 64 features: the 52 of stage 1, plus `p1` and its 11 context columns.
+- Decision: exclusive assignment, then the rule and its parameter chosen on the eval slice among threshold (0.20–0.95), expected F (floors 0.05–0.4) and gated expected F (gates 0.30–0.95).
+
+**Results (eval slice, 441,521 S1; 20% of train S1, never fitted)**
+
+| Score / rule | F0.5 | P | R | Singletons | Others |
+|---|---:|---:|---:|---:|---:|
+| Perfect matcher on these candidates | 0.9947 | 1.0000 | 0.9833 | 1.0000 | 0.9944 |
+| Stage 1, threshold 0.725 | 0.9791 | 0.9947 | 0.9494 | 0.9756 | 0.9793 |
+| Stage 1, gated expected F (gate 0.7) | 0.9793 | 0.9948 | 0.9492 | 0.9737 | 0.9796 |
+| Stage 2, threshold 0.65 | 0.9809 | 0.9945 | 0.9564 | 0.9848 | — |
+| Stage 2, expected F (floor 0.4) | 0.9813 | 0.9951 | 0.9544 | 0.9759 | 0.9816 |
+| **Stage 2, gated expected F (gate 0.5): chosen** | **0.9813** | 0.9952 | 0.9544 | 0.9774 | 0.9815 |
+
+| Country | Eval S1 | F0.5 | P | R | Singletons | Others |
+|---|---:|---:|---:|---:|---:|---:|
+| India | 176,610 | 0.9778 | 0.9942 | 0.9463 | 0.9743 | 0.9780 |
+| US | 264,911 | 0.9837 | 0.9958 | 0.9597 | 0.9795 | 0.9839 |
+
+- **Best iterations:** stage 1 1,392 / 1,277 / 1,469; stage 2 573 / 444 / 454.
+- **Top stage-1 features by gain:** `margin_vs_other_s1` 55%, `rank_for_t` 27%, `num_jacc` 3.8%, then `al_b_worst`, `n_tsort`, `al_b_unaligned_idf`, `num_b_in_a`. **Stage 2:** `p1` 71%, `p1_margin_t` 23%, `p1_rank_t` 3.5%.
+- **Test set:** 5,683,607 links for 1,630,378 of 1,732,544 S1 (5.9% empty). The share of S1 with a link is 0.941 in every country, **France included** (3.18 links per S1; India 3.29, US 3.31). The eval truth has 0.944 and 3.46. The official validator passes.
+- **Runtime (EC2 r7a.2xlarge, 8 cores):** 4 h 46 min wall clock, peak 44.4 GB. Prep 386 s, block 1,202 s, features 2,344 s, train 13,137 s, predict 90 s. Training includes 2.4 h of stage-1 scoring, slowed by a second job that competed for the CPU.
+- **Output:** `predictions/M-v3/` in S3 and the repo's `output/` (md5 of `matching_results.tsv`: `b4644450c78b5bf64f8124223223a005`). The first predict, with expected F at floor 0.4, is kept in `predictions/full/`; it scores the same to 6 decimals.
+
+**Analysis**
+- **Full data costs 0.009 against DEV-10** (0.9906 → 0.9813), almost all of it in recall (0.9794 → 0.9544). Precision barely moves (0.9963 → 0.9952).
+- **The matcher now loses more than blocking does.** Blocking caps the score at 0.9947 (a loss of 0.0053), and the matcher loses a further 0.0134. 2.9% of the true links are among the candidates but are not predicted; on DEV-10 that figure was 1.5%. Denser competition hurts twice: a target has more rival S1 records that claim it, and each S1 record has more lookalike candidates.
+- The decision rule hardly matters any more. The best threshold, expected-F and gated rules are within 0.0004 of each other. The gains have to come from better probabilities.
+- France gets the same prediction profile as India and the US, so the pipeline does not collapse on the unseen country, but its score cannot be measured.
+- **Next:** MATCH-v6 (fit on 75% of train S1 instead of 30%, on the cached features), the BLK-v4b@40n20 depth curves (for deeper blocking in BLK-v5), and an error analysis of the full-data eval misses.
 
 ### FULL-v1 blocking — BLK-v4b@20 on the full data
 

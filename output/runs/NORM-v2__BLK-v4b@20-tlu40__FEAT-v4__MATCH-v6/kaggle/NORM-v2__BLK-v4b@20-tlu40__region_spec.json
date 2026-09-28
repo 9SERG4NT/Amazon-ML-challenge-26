@@ -1,0 +1,20 @@
+{
+  "countries": [
+    "India",
+    "US"
+  ],
+  "merges": [
+    [
+      "India",
+      "telangana",
+      "andhrapradesh"
+    ],
+    [
+      "India",
+      "delhi",
+      "haryana"
+    ]
+  ],
+  "min_share": 0.002,
+  "min_last_ratio": 0.6
+}

@@ -1,5 +1,5 @@
 # Python 3.12. Exact versions used for every reported run (local, EC2 and SageMaker).
-# Licences: LightGBM MIT (the model), polars MIT, numpy/scipy BSD, rapidfuzz MIT,
+# Licences: LightGBM MIT (the model), XGBoost Apache-2.0 (MATCH-v8), CatBoost Apache-2.0 (MATCH-v15), polars MIT, numpy/scipy BSD, rapidfuzz MIT,
 # sparse_dot_topn Apache-2.0, anyascii ISC, pyarrow Apache-2.0, psutil BSD.
 polars==1.41.2
 numpy==2.4.6
@@ -10,3 +10,16 @@ sparse_dot_topn==1.2.0
 anyascii==0.3.3
 pyarrow==24.0.0
 psutil==7.2.2
+xgboost==3.4.1
+catboost==1.2.10
+# experiments only (not part of the model): Bayesian hyperparameter search, experiments/tune_lgb.py; MIT
+optuna==5.0.0
+# cross-encoder features (src/experiments/cross_encoder.py, src/kaggle/run_ce.py): PyTorch BSD-3, transformers Apache-2.0.
+# Models, downloaded on first use: google/bert_uncased_L-4_H-256_A-4 (Apache-2.0, 11M), intfloat/multilingual-e5-small (MIT, 118M),
+# intfloat/multilingual-e5-base (MIT, 278M). Pipeline B (src/team_pipeline/) has its own pinned file: src/team_pipeline/requirements.txt.
+# CPU build: pip install torch==2.14.0 --index-url https://download.pytorch.org/whl/cpu (the Kaggle GPU image brings its own CUDA build)
+torch==2.14.0
+transformers==5.17.0
+tokenizers==0.23.2
+safetensors==0.8.0
+huggingface_hub==1.33.0

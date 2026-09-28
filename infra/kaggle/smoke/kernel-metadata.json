@@ -1,0 +1,14 @@
+{
+  "id": "serg4nt/mlc26-smoke",
+  "title": "mlc26-smoke",
+  "code_file": "run_smoke.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": true,
+  "enable_gpu": false,
+  "enable_internet": true,
+  "dataset_sources": ["serg4nt/mlc26-ber-data"],
+  "competition_sources": [],
+  "kernel_sources": [],
+  "model_sources": []
+}

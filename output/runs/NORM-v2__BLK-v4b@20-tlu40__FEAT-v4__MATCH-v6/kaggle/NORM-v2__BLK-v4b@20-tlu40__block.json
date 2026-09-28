@@ -1,0 +1,73 @@
+{
+  "region_spec": {
+    "countries": [
+      "India",
+      "US"
+    ],
+    "merges": [
+      [
+        "India",
+        "telangana",
+        "andhrapradesh"
+      ],
+      [
+        "India",
+        "delhi",
+        "haryana"
+      ]
+    ],
+    "min_share": 0.002,
+    "min_last_ratio": 0.6
+  },
+  "universe": {
+    "India": {
+      "s1": 458739,
+      "targets": 2661402,
+      "targets_per_s1": 5.8,
+      "distractors_per_s1": 2.34
+    },
+    "US": {
+      "s1": 688349,
+      "targets": 3990716,
+      "targets_per_s1": 5.8,
+      "distractors_per_s1": 2.34
+    }
+  },
+  "train": {
+    "candidates": 54787212,
+    "per_s1": 47.76199559231724,
+    "recall_all": {
+      "pair_recall": 0.986830346798097,
+      "s1_all_found": 0.9565673857882082,
+      "cand_per_s1": 47.76199559231724
+    },
+    "recall_eval": {
+      "pair_recall": 0.9868811121644955,
+      "s1_all_found": 0.9567490938921978,
+      "cand_per_s1": 47.760761096301195
+    },
+    "recall_at_k_eval": {
+      "5": 0.9648791192398359,
+      "10": 0.978951287189865,
+      "20": 0.9868811121644955
+    },
+    "recall_at_k_noaddr_eval": {
+      "5": 0.9868811121644955
+    },
+    "cand_per_s1_at_k": {
+      "5": 17.762000822953425,
+      "10": 27.762000822953425,
+      "15": 37.76199995118073,
+      "20": 47.76199559231724
+    },
+    "cand_per_s1_at_k_noaddr": {
+      "5": 47.76199559231724
+    }
+  },
+  "test": {
+    "candidates": 83319230,
+    "per_s1": 48.09068629714454
+  },
+  "seconds": 494,
+  "peak_gb": 48.8
+}
