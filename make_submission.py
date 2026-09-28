@@ -35,11 +35,14 @@ def main() -> int:
     ap.add_argument("--test-dir", default=str(ROOT / "resources" / "student_resource" / "dataset" / "test"))
     ap.add_argument("--code-dir", default=str(CODE), help="packed as code/business_entity_resolution/")
     ap.add_argument("--doc", default=str(ROOT / "Documentation_template.md"), help="the filled methodology template")
+    ap.add_argument("--extra", action="append", default=[],
+                    help="a further file placed at the zip root under its own name (e.g. the methodology as a PDF); repeatable")
     args = ap.parse_args()
 
     out, code, doc = Path(args.output_dir), Path(args.code_dir), Path(args.doc)
     missing = [str(out / f) for f in OUTPUTS if not (out / f).exists()]
     missing += [str(p) for p in (code / "src", code / "README.md", code / "requirements.txt", doc) if not p.exists()]
+    missing += [e for e in args.extra if not Path(e).exists()]
     if missing:
         print(f"missing: {', '.join(missing)}")
         return 1
@@ -62,6 +65,8 @@ def main() -> int:
             if p.is_file() and not skip(p):
                 z.write(p, f"code/business_entity_resolution/{p.relative_to(code).as_posix()}")
         z.write(doc, "Documentation_template.md")
+        for e in args.extra:
+            z.write(e, Path(e).name)
     names = zipfile.ZipFile(zip_path).namelist()
     print(f"wrote {zip_path.name}: {len(names)} files, {zip_path.stat().st_size / 1e6:.1f} MB")
     return 0

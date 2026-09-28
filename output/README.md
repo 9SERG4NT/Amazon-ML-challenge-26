@@ -6,7 +6,7 @@ these exact names.
 
 **From 11:25 to 17:50 IST the top-level files were M-v28's** (public leaderboard 0.978, eval 0.9885, md5
 `21ce5362…`; kept in `runs/`). `Team_Sumukh_submission.zip` (repository root) is the final COMB-v2 package (54
-files, 87.1 MB, validator PASS, md5 `f4653dbe…`; everything under `code/business_entity_resolution/src/`, pipeline B in `src/team_pipeline/`), in the repository since 18:31 IST at the user's request.
+files, 87.1 MB, validator PASS, md5 `662ddbdf…`; everything under `code/business_entity_resolution/src/`, pipeline B in `src/team_pipeline/`), in the repository since 18:31 IST at the user's request.
 
 **COMB-v2 (18:25 IST): the final submission, public leaderboard 0.98476 (the last upload); the two files at the top
 of this folder are COMB-v2's** (matching

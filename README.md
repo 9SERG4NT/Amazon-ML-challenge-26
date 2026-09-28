@@ -98,7 +98,8 @@ submitted files and every run's outputs are listed in [`output/README.md`](outpu
 | [`code/business_entity_resolution/`](code/business_entity_resolution/) | the pipeline — see its [README](code/business_entity_resolution/README.md) for how to run it |
 | [`method_result.md`](method_result.md) | experiment log: every version, how it was measured, what it scored |
 | [`Documentation_template.md`](Documentation_template.md) | methodology write-up for the submission (final: COMB-v2) |
-| `Team_Sumukh_submission.zip` | the final submission package (output files, code with pipeline B, methodology; validator PASS) |
+| `Team_Sumukh_submission.zip` | the final submission package (output files, code with pipeline B, methodology as `.md` and PDF; validator PASS) |
+| [`Team_Sumukh_Methodology_Report.pdf`](Team_Sumukh_Methodology_Report.pdf) | the full methodology report (25 pages: all three pipelines, the combination, results, licences), also inside the zip |
 | [`infra/aws/`](infra/aws/) | AWS setup: SageMaker training-job launcher, EC2 runner (`ec2/launch_runner.sh` creates it in a fresh account), quotas — see its [README](infra/aws/README.md) |
 | [`infra/kaggle/`](infra/kaggle/) | Kaggle kernels: presets on a private copy of the dataset (TPU VM for its RAM; CPU for 1% smoke tests), and the GPU cross-encoders (`ce/`, `ce3/`). The team pipeline's kernel (`team/`) is not in git |
 | [`make_submission.py`](make_submission.py) | validates the outputs and builds `<team>_submission.zip` |
